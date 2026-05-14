@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
 import { AppText, ScreenHeader, Card } from '../../src/components';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Game, ScoreType } from '../../src/types';
 
 const SCORE_TYPE_LABEL: Record<ScoreType, string> = {

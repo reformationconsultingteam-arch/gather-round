@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "gatherround",
-    "platforms": ["ios"],
+    "platforms": ["web"],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -14,14 +14,23 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a1a2e"
     },
-    "ios": {
-      "bundleIdentifier": "com.gatherround.app",
-      "supportsTablet": false,
-      "buildNumber": "1"
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "Gather Round",
+      "shortName": "Gather Round",
+      "themeColor": "#1a1a2e",
+      "backgroundColor": "#1a1a2e",
+      "display": "standalone",
+      "orientation": "portrait",
+      "lang": "en"
+    },
+    "experiments": {
+      "baseUrl": "/gather-round"
     },
     "plugins": [
-      "expo-router",
-      "react-native-reanimated"
+      "expo-router"
     ]
   }
 }

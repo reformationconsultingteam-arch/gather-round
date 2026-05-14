@@ -3,32 +3,35 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "expo start --web",
+    "web": "expo start --web",
+    "build:web": "expo export -p web && node scripts/inject-pwa-head.js && npx workbox-cli generateSW workbox-config.js"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "date-fns": "^4.1.0",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
-    "expo-haptics": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.23",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-uuid": "^2.0.4"
+    "react-native-uuid": "^2.0.4",
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "workbox-cli": "^7.4.1"
   },
   "private": true
 }

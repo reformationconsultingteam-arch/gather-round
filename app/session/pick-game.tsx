@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useData } from '../../src/context/DataContext';
 import { useSessionFlow } from '../../src/context/SessionFlowContext';
 import { AppText, PrimaryButton } from '../../src/components';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Game, ScoreType } from '../../src/types';
 
 const SCORE_TYPE_COLOR: Record<ScoreType, string> = {

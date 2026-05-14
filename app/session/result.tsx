@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -208,8 +207,6 @@ export default function ResultScreen() {
   // and would otherwise reset the auto-advance timer on every re-render.
   useEffect(() => {
     if (!winnerId) return;
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const timer = setTimeout(() => {
       if (!didAutoAdvance.current) {
