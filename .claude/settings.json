@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git rm App.tsx index.ts)",
+      "Bash(git rm App.tsx)",
+      "Bash(git rm index.ts)"
+    ]
+  }
+}
