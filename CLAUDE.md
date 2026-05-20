@@ -1,13 +1,16 @@
 # Gather Round
 
-iOS-only React Native / Expo app for tracking family game-night sessions, scores, and stats. Local-only data via AsyncStorage — no auth, no backend, no network. Target: App Store submission.
+Progressive Web App for tracking family game-night sessions, scores, and stats. Local-only data via AsyncStorage (which maps to `localStorage` on web) — no auth, no backend, no network. Deployed free to GitHub Pages.
+
+**Live URL:** https://reformationconsultingteam-arch.github.io/gather-round/
 
 ## Architectural decisions
-- Expo SDK 54 managed workflow, expo-router file-based navigation, AsyncStorage for persistence.
+- Expo SDK 54 managed workflow, **web-only platform target**, expo-router file-based navigation, AsyncStorage for persistence (browser `localStorage` under the hood via `react-native-web`).
 - Single `DataContext` provider owns all CRUD (players, games, sessions). Ephemeral `SessionFlowContext` owns the 4-step session-creation modal state only.
 - Sessions store `playerSnapshots` (name + color frozen at save time) so deleted players still render correctly in history.
 - Games have a `scoreType` of `highest | lowest | winner`; `winner` games have no scorecard fields and the user manually crowns the winner.
-- All builds run via EAS Cloud (developer is on Windows, no Mac).
+- Production build is a SPA — `expo export -p web` → post-process to inject PWA head tags + 404.html SPA fallback → Workbox-generated service worker for offline.
+- Hosted on GitHub Pages at the `/gather-round/` subpath (`experiments.baseUrl` in `app.json`). GitHub Actions deploys on every push to `main`.
 
 ## Detail docs
 - Architecture & data flow → [docs/claude/architecture.md](docs/claude/architecture.md)

@@ -1,11 +1,13 @@
 # Architecture & data flow
 
 ## Stack
-- **Runtime**: Expo SDK 54 (managed workflow), React Native 0.81.5, React 19.1.
+- **Runtime**: Expo SDK 54 (managed workflow), `react-native-web` 0.21, React 19.1. Web-only target.
 - **Navigation**: expo-router 6 (file-based, Stack + Tabs).
 - **State**: React Context (no Redux/Zustand). Two providers — `DataContext` (durable) and `SessionFlowContext` (ephemeral, only inside `app/session/`).
-- **Persistence**: `@react-native-async-storage/async-storage` (unencrypted key-value, local only).
-- **Animation**: react-native-reanimated 4 for the result/celebration screen confetti and winner reveal.
+- **Persistence**: `@react-native-async-storage/async-storage` — on web this shims to `localStorage` automatically. Same `Player`/`Game`/`Session` arrays under keys `@gatherround/*`.
+- **Animation**: react-native-reanimated 4 (with `react-native-worklets` peer dep) for the result/celebration screen confetti and winner reveal. Loads cleanly on web in SDK 54.
+- **PWA shell**: Custom `public/manifest.json`, app icons under `public/icons/`, Workbox-generated service worker (`dist/sw.js`) precaches the JS bundle for offline use. Post-build `scripts/inject-pwa-head.js` injects manifest link + apple-touch-icon + SW registration into `dist/index.html` and writes `dist/404.html` as an SPA fallback for deep-link refreshes on GitHub Pages.
+- **Hosting**: GitHub Pages at `/gather-round/` subpath (`experiments.baseUrl` in `app.json`). GitHub Actions workflow `.github/workflows/deploy.yml` builds on every push to `main` and deploys `dist/`.
 - **No backend, no auth, no analytics, no network requests.**
 
 ## Data model (`src/types/index.ts`)

@@ -3,9 +3,15 @@
 ## Entry points
 - `app/_layout.tsx` — root Stack, wraps everything in `DataProvider`.
 - `app/(tabs)/_layout.tsx` — 4-tab bar (Home, Games, Players, Stats).
-- `app.json` — Expo config (bundle id `com.gatherround.app`, dark UI, splash).
-- `eas.json` — EAS build/submit profiles. **Submit block needs Apple ID, ASC App ID, Apple Team ID before first submit.**
-- `App.tsx` and `index.ts` — leftover Expo defaults; unused because `package.json` `main` is `expo-router/entry`.
+- `app.json` — Expo config (web-only target, baseUrl `/gather-round`, dark UI, splash).
+- `package.json` `main` is `expo-router/entry`.
+
+## Build pipeline
+- `public/manifest.json` — PWA manifest.
+- `public/icons/icon-{192,512}.png`, `public/favicon.png` — PWA + browser icons (placeholders).
+- `scripts/inject-pwa-head.js` — post-export script that injects PWA head tags into `dist/index.html` and writes `dist/404.html` as the SPA fallback.
+- `workbox-config.js` — Workbox config; `build:web` runs `workbox generateSW` to emit `dist/sw.js` for offline support.
+- `.github/workflows/deploy.yml` — builds + deploys to GitHub Pages on push to `main`.
 
 ## Tabs
 - `app/(tabs)/index.tsx` — Home (stat cards, recent sessions, "New Session" FAB).
