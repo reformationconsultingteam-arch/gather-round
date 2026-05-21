@@ -16,8 +16,8 @@
 ## Tabs
 - `app/(tabs)/index.tsx` — Home (stat cards, recent sessions, "New Session" FAB).
 - `app/(tabs)/games.tsx` — Preset + custom games list, long-press a custom game to delete.
-- `app/(tabs)/players.tsx` — Players list. Tap → profile, long-press → rename/delete.
-- `app/(tabs)/stats.tsx` — Leaderboard, head-to-head picker, games-played list.
+- `app/(tabs)/players.tsx` — Players list. Header has tags icon → `manage-groups`, "+" → `add-player`. Per-player rows show small colored group dots. Long-press → rename / edit groups / delete.
+- `app/(tabs)/stats.tsx` — Group-scope chip row + Leaderboard + head-to-head picker + games-played list. All three sections recompute when the group filter changes.
 
 ## Detail screens
 - `app/history/index.tsx` — Sessions list (most recent first).
@@ -26,22 +26,24 @@
 - `app/game/[id].tsx` — Per-game stats (high score, wins-by-player bar chart, recent sessions).
 
 ## Modals
-- `app/modals/add-player.tsx` — Sheet with name input + auto-color preview.
-- `app/modals/add-game.tsx` — Sheet with emoji picker + name + score-type radio.
+- `app/modals/add-player.tsx` — Sheet with name input + auto-color preview + groups multi-select chips.
+- `app/modals/add-game.tsx` — Sheet with emoji picker + name + score-type radio (highest / lowest / placement / winner). For placement, exposes a comma-separated points-per-place editor.
+- `app/modals/manage-groups.tsx` — Sheet to create / rename / recolor / delete groups.
 
 ## Session flow
 - `app/session/_layout.tsx` — Stack with `SessionFlowProvider`.
 - `app/session/pick-game.tsx`, `pick-players.tsx`, `enter-scores.tsx`, `result.tsx`.
 
 ## Source tree (`src/`)
-- `src/types/index.ts` — `Player`, `Game`, `Session`, `ScoreType`.
-- `src/context/DataContext.tsx` — durable CRUD provider.
-- `src/context/SessionFlowContext.tsx` — ephemeral session-flow state.
-- `src/storage/index.ts` — AsyncStorage load/save helpers (one key per collection).
-- `src/data/presetGames.ts` — 8 preset games (Catan, Ticket to Ride, Scrabble, UNO, Codenames, Monopoly, Risk, Clue).
-- `src/data/colors.ts` — 10-color player palette + `colorForIndex`.
+- `src/types/index.ts` — `Player` (with optional `groupIds[]`), `Game` (with optional `placementPoints[]`), `Session`, `Group`, `ScoreType` (`highest | lowest | winner | placement`).
+- `src/context/DataContext.tsx` — durable CRUD provider; players + games + sessions + groups; includes preset migration on bootstrap (seeds any missing preset IDs into existing installs without wiping custom games).
+- `src/context/SessionFlowContext.tsx` — ephemeral session-flow state. For placement games, the score input stores `{ Place: <1-indexed integer> }`.
+- `src/storage/index.ts` — AsyncStorage load/save helpers. Keys: `@gatherround/{players, games, sessions, groups}`.
+- `src/data/presetGames.ts` — 11 preset games (Catan, Ticket to Ride, Scrabble, UNO, Codenames, Monopoly, Risk, Clue, **Texas Hold 'Em**, **Secret Hitler**, **Flip 7**).
+- `src/data/colors.ts` — 10-color player palette + `colorForIndex`. Reused for group colors.
 - `src/constants/theme.ts` — `Colors`, `Spacing`, `Radius`, `FontSize`, `FontWeight`.
-- `src/utils/scoring.ts` — `getPlayerTotal`, `calculateWinner`, `formatScore`.
-- `src/utils/stats.ts` — all analytics (win counts, streaks, head-to-head, etc.).
+- `src/utils/scoring.ts` — `getPlayerTotal`, `calculateWinner` (knows about placement), `formatScore`, `getPlacementPoints`, `formatPlace`, `DEFAULT_PLACEMENT_POINTS`.
+- `src/utils/stats.ts` — all analytics (win counts, streaks, head-to-head, etc.). `getGameBestScore` returns "most 1st-place finishes" for placement games.
 - `src/utils/players.ts` — `resolvePlayer(session, id, livePlayers)`: live → snapshot → null lookup used by every history-style screen.
+- `src/utils/groups.ts` — `filterSessionsByGroup(sessions, groupId, players)`: returns sessions where every participant is in `groupId`, or all sessions if `groupId` is null.
 - `src/components/` — `AppText`, `Avatar`, `Card`, `Buttons` (Primary/Ghost), `ScreenHeader`, plus barrel `index.ts`.

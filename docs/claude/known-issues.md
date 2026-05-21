@@ -47,3 +47,15 @@ The H2H WinBar shows a gray segment for sessions where neither p1 nor p2 won —
 
 ## Auto-advance on result screen
 The result screen auto-dismisses after 4 s. The timer key is the `session.winner` string id, not the resolved player object — using the object would re-create the timer on every render and never fire.
+
+## Secret Hitler is a team game; the model crowns one player
+Secret Hitler is genuinely team-based — Liberals vs Fascists, and the winner is the team, not an individual. Our data model assumes one winning player per session. The preset uses `scoreType: 'winner'` and the convention is "crown one player from the winning team" (usually the strongest performer — Hitler if Fascists won, the President for a successful liberal policy win, etc.). Real team-aware scoring would require a bigger model change and isn't planned. Same caveat applies if anyone adds other team games (Codenames, Spyfall) as a custom `winner` game.
+
+## Placement scoring stores the position, not the points
+For `placement`-type games (Texas Hold 'Em ships with [5, 3, 2, 1, 0]), the session stores `scores[playerId] = { Place: <1-indexed integer> }`. Derived point values are computed at read time via `getPlacementPoints(place, game)`. This means the rubric can be edited later (via the game's `placementPoints`) without rewriting any session history — the new rubric just retroactively applies. If you ever want to freeze the points at session-save time instead, you'd need to introduce a separate stored field and back-fill.
+
+## Group filter excludes mixed-roster sessions
+A session shows in a group's leaderboard only when **every** participant is a member of that group. A "Family + one Friend" Hitler night appears in neither the Family nor Friends leaderboard — only under "All". This is intentional (it's what makes Family vs Friends comparable), but it means stats can feel like they're missing data if you regularly mix groups. If that becomes a problem, the alternative is "subset" semantics — only count each group member's individual result in any session they played in — but that's more work and produces weirder numbers (a session that "counts" partially toward both groups). Group filtering is also strictly read-time — never written to the session, so the lens can be re-applied or removed without migration.
+
+## Group filter ignores deleted players
+`filterSessionsByGroup` looks at each session's current participants and checks their live `groupIds`. If a participant has been deleted (so they're not in the live `players` array), the session is treated as "this player has no groups" — which fails the all-in-group test, so the session is excluded from every group filter. It still appears under "All" via the `resolvePlayer` snapshot fallback. If you want deleted players' sessions to keep showing in their old group filter, the model would need to snapshot `groupIds` onto the session at save time too.

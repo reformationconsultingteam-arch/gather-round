@@ -12,6 +12,17 @@ Status legend:
 
 ---
 
+## -1. Family-friendly games + groups + placement scoring — **Done (2026-05-14)**
+**Question:** Drew wants three more preset games his family actually plays (Texas Hold 'Em, Secret Hitler, Flip 7) plus a way to scope leaderboards by group of people (Family vs Friends, with overlapping membership).
+**Answer:** Yes — shipped end-to-end.
+**Implementation:**
+- **Three presets** in [src/data/presetGames.ts](../../src/data/presetGames.ts): Hold 'Em (♠️, new `placement` scoreType, default [5,3,2,1,0]), Secret Hitler (🤫, `winner` — team-game caveat noted in known-issues), Flip 7 (7️⃣, `highest` with rounds 1–3 like UNO).
+- **New `placement` scoreType.** Type changes in [src/types/index.ts](../../src/types/index.ts); helpers `getPlacementPoints` + `formatPlace` + `DEFAULT_PLACEMENT_POINTS` in [src/utils/scoring.ts](../../src/utils/scoring.ts); `calculateWinner` extended to pick Place === 1; `getGameBestScore` in [src/utils/stats.ts](../../src/utils/stats.ts) returns "most 1st-place finishes" for placement. UI: a place-pill picker in [enter-scores.tsx](../../app/session/enter-scores.tsx) with uniqueness validation; placement-aware rows in [result.tsx](../../app/session/result.tsx) and [history/[id].tsx](../../app/history/%5Bid%5D.tsx); placement "Points per place" editor in [add-game.tsx](../../app/modals/add-game.tsx).
+- **Groups feature.** New `Group { id, name, color }` + optional `Player.groupIds[]` in types; new `@gatherround/groups` storage key + getters; new [src/utils/groups.ts](../../src/utils/groups.ts) `filterSessionsByGroup`; full group CRUD in [DataContext](../../src/context/DataContext.tsx) (addGroup, renameGroup, recolorGroup, deleteGroup, setPlayerGroups); new [manage-groups.tsx](../../app/modals/manage-groups.tsx) modal; group multi-select chips in add-player; per-player group dots + Edit-groups action in Players tab; group-scope chip row at the top of Stats and game-detail screens.
+- **Preset migration**: [DataContext](../../src/context/DataContext.tsx) bootstrap now also seeds any PRESET_GAMES whose IDs are missing from saved games — so existing installs pick up new presets without wiping custom ones. Idempotent.
+
+**Filter semantics:** a session shows in a group leaderboard *iff* every participant is a member of that group. Mixed-roster sessions only show under "All". Documented in known-issues.
+
 ## 0. Pivot to PWA — **Done (2026-05-14)**
 **Question:** Submit to the App Store, or ship as a free PWA?
 **Answer:** PWA. Avoids the $99/yr Apple Developer fee, the artwork blocker, the EAS build queue, and the App Store review cycle.
