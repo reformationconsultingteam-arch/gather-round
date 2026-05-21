@@ -7,7 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { useData } from '../../src/context/DataContext';
 import { AppText, Avatar, Card } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
-import { formatScore, getPlayerTotal } from '../../src/utils/scoring';
+import { formatScore, getPlayerTotal, getPlacementPoints, formatPlace } from '../../src/utils/scoring';
 import { resolvePlayer } from '../../src/utils/players';
 
 export default function SessionDetailScreen() {
@@ -29,12 +29,16 @@ export default function SessionDetailScreen() {
   }
 
   const isPointsGame = game.scoreType !== 'winner';
+  const isPlacementGame = game.scoreType === 'placement';
   const winner = resolvePlayer(session, session.winner, players);
 
-  // Sort players: winner first, then by score desc (or original order for winner-pick)
+  // Sort players: winner first; then by Place ascending for placement, or by total desc for other points games
   const sortedPlayers = [...session.players].sort((a, b) => {
     if (a === session.winner) return -1;
     if (b === session.winner) return 1;
+    if (isPlacementGame) {
+      return (session.scores[a]?.Place ?? 99) - (session.scores[b]?.Place ?? 99);
+    }
     if (isPointsGame) {
       return getPlayerTotal(session.scores[b] ?? {}) - getPlayerTotal(session.scores[a] ?? {});
     }
@@ -87,6 +91,8 @@ export default function SessionDetailScreen() {
           const playerScores = session.scores[pid] ?? {};
           const total = getPlayerTotal(playerScores);
           const hasFields = game.scorecardFields.length > 0;
+          const place = isPlacementGame ? playerScores.Place : undefined;
+          const placementPts = isPlacementGame ? getPlacementPoints(place, game) : 0;
 
           return (
             <Card
@@ -100,16 +106,29 @@ export default function SessionDetailScreen() {
                 <AppText size="md" weight="bold" style={{ flex: 1, marginLeft: Spacing.sm }}>
                   {p.name}
                 </AppText>
+                {isPlacementGame && place !== undefined && (
+                  <AppText
+                    size="xs"
+                    color={Colors.textSecondary}
+                    style={{ marginRight: Spacing.sm }}
+                  >
+                    {formatPlace(place)}
+                  </AppText>
+                )}
                 {isWinner && <AppText style={{ marginRight: Spacing.xs }}>👑</AppText>}
-                {isPointsGame && (
+                {isPlacementGame ? (
+                  <AppText size="lg" weight="heavy" color={isWinner ? p.color : Colors.textPrimary}>
+                    {placementPts} pt{placementPts === 1 ? '' : 's'}
+                  </AppText>
+                ) : isPointsGame && (
                   <AppText size="lg" weight="heavy" color={isWinner ? p.color : Colors.textPrimary}>
                     {formatScore(total)}
                   </AppText>
                 )}
               </View>
 
-              {/* Field breakdown */}
-              {isPointsGame && hasFields && (
+              {/* Field breakdown — only for highest/lowest games, not placement */}
+              {isPointsGame && !isPlacementGame && hasFields && (
                 <View style={styles.fields}>
                   {game.scorecardFields.map(field => (
                     <View key={field} style={styles.fieldRow}>
@@ -122,7 +141,7 @@ export default function SessionDetailScreen() {
                 </View>
               )}
 
-              {isPointsGame && !hasFields && (
+              {isPointsGame && !isPlacementGame && !hasFields && (
                 <View style={styles.fields}>
                   <View style={styles.fieldRow}>
                     <AppText size="sm" color={Colors.textSecondary} style={{ flex: 1 }}>Score</AppText>

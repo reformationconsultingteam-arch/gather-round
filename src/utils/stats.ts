@@ -124,9 +124,10 @@ export interface GameBestScore {
 
 /**
  * "Best" score for a game, respecting the game's score type:
- * - `highest` games → the highest total ever achieved
- * - `lowest`  games → the lowest total ever achieved
- * - `winner`  games → null (no scores)
+ * - `highest`   games → the highest total ever achieved
+ * - `lowest`    games → the lowest total ever achieved
+ * - `placement` games → the player with the most 1st-place finishes (score = count)
+ * - `winner`    games → null (no scores)
  */
 export function getGameBestScore(
   sessions: Session[],
@@ -136,8 +137,33 @@ export function getGameBestScore(
   if (scoreType === 'winner') return null;
 
   const gameSessions = sessions.filter(s => s.gameId === gameId);
-  let best: GameBestScore | null = null;
 
+  if (scoreType === 'placement') {
+    // Tally 1st-place finishes per player across this game's sessions.
+    const counts: Record<string, { score: number; name: string; color: string }> = {};
+    for (const s of gameSessions) {
+      for (const pid of s.players) {
+        if ((s.scores[pid]?.Place ?? 0) !== 1) continue;
+        const snap = s.playerSnapshots?.[pid];
+        if (!counts[pid]) counts[pid] = { score: 0, name: snap?.name ?? 'Unknown', color: snap?.color ?? '#888' };
+        counts[pid].score += 1;
+        // Refresh snapshot to the most-recent one available
+        if (snap) {
+          counts[pid].name = snap.name;
+          counts[pid].color = snap.color;
+        }
+      }
+    }
+    let best: GameBestScore | null = null;
+    for (const [pid, c] of Object.entries(counts)) {
+      if (best === null || c.score > best.score) {
+        best = { playerId: pid, score: c.score, playerName: c.name, playerColor: c.color };
+      }
+    }
+    return best;
+  }
+
+  let best: GameBestScore | null = null;
   for (const s of gameSessions) {
     for (const pid of s.players) {
       const score = getPlayerTotal(s.scores[pid] ?? {});

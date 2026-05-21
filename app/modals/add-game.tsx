@@ -21,10 +21,23 @@ const QUICK_EMOJIS = [
 ];
 
 const SCORE_TYPES: { value: ScoreType; label: string; sub: string }[] = [
-  { value: 'highest', label: 'Highest wins',  sub: 'Most points wins' },
-  { value: 'lowest',  label: 'Lowest wins',   sub: 'Fewest points wins' },
-  { value: 'winner',  label: 'Pick a winner', sub: 'No scoring, just crown someone' },
+  { value: 'highest',   label: 'Highest wins',   sub: 'Most points wins' },
+  { value: 'lowest',    label: 'Lowest wins',    sub: 'Fewest points wins' },
+  { value: 'placement', label: 'Placement',      sub: 'Award points by finishing order' },
+  { value: 'winner',    label: 'Pick a winner',  sub: 'No scoring, just crown someone' },
 ];
+
+const DEFAULT_PLACEMENT_RUBRIC = '5, 3, 2, 1, 0';
+
+function parsePlacementPoints(input: string): number[] {
+  return input
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .map(s => Number(s))
+    .filter(n => Number.isFinite(n))
+    .map(n => Math.trunc(n));
+}
 
 export default function AddGameModal() {
   const { addCustomGame } = useData();
@@ -34,8 +47,12 @@ export default function AddGameModal() {
   const [emoji, setEmoji] = useState('🎲');
   const [emojiInput, setEmojiInput] = useState('🎲');
   const [scoreType, setScoreType] = useState<ScoreType>('highest');
+  const [placementInput, setPlacementInput] = useState(DEFAULT_PLACEMENT_RUBRIC);
 
-  const isValid = name.trim().length > 0;
+  const placementPoints = parsePlacementPoints(placementInput);
+  const placementValid =
+    scoreType !== 'placement' || placementPoints.length >= 2;
+  const isValid = name.trim().length > 0 && placementValid;
 
   function handleEmojiInputChange(val: string) {
     setEmojiInput(val);
@@ -53,6 +70,7 @@ export default function AddGameModal() {
       emoji,
       category: 'Custom',
       scoreType,
+      ...(scoreType === 'placement' ? { placementPoints } : {}),
     });
     router.back();
   }
@@ -140,6 +158,29 @@ export default function AddGameModal() {
             </View>
           </Pressable>
         ))}
+
+        {/* Placement points editor */}
+        {scoreType === 'placement' && (
+          <>
+            <AppText size="sm" weight="semibold" color={Colors.textSecondary} style={styles.label}>
+              POINTS PER PLACE
+            </AppText>
+            <TextInput
+              style={styles.input}
+              value={placementInput}
+              onChangeText={setPlacementInput}
+              placeholder="5, 3, 2, 1, 0"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <AppText size="xs" color={Colors.textMuted}>
+              {placementPoints.length >= 2
+                ? `1st = ${placementPoints[0]} pts · last = ${placementPoints[placementPoints.length - 1]} pts · ${placementPoints.length} places defined`
+                : 'Enter at least two integers, comma-separated. Players past the list get 0.'}
+            </AppText>
+          </>
+        )}
 
         {/* Actions */}
         <View style={styles.actions}>

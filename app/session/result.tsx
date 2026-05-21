@@ -15,7 +15,7 @@ import { useSessionFlow } from '../../src/context/SessionFlowContext';
 import { AppText, Avatar, PrimaryButton } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { PLAYER_COLORS } from '../../src/data/colors';
-import { formatScore, getPlayerTotal } from '../../src/utils/scoring';
+import { formatScore, getPlayerTotal, getPlacementPoints, formatPlace } from '../../src/utils/scoring';
 import { resolvePlayer } from '../../src/utils/players';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -234,6 +234,7 @@ export default function ResultScreen() {
     );
   }
 
+  const isPlacementGame = game.scoreType === 'placement';
   const isPointsGame = game.scoreType !== 'winner';
 
   return (
@@ -257,33 +258,54 @@ export default function ResultScreen() {
             <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>
               FINAL SCORES
             </AppText>
-            {session.players.map(pid => {
-              const p = resolvePlayer(session, pid, players);
-              if (!p) return null;
-              const total = getPlayerTotal(session.scores[pid] ?? {});
-              const isWinner = pid === session.winner;
-              return (
-                <View
-                  key={pid}
-                  style={[styles.scoreRow, isWinner && { backgroundColor: p.color + '18' }]}
-                >
-                  <Avatar name={p.name} color={p.color} size="sm" />
-                  <AppText
-                    size="md"
-                    weight={isWinner ? 'bold' : 'regular'}
-                    style={{ flex: 1, marginLeft: Spacing.sm }}
+            {(() => {
+              // For placement games, sort by Place ascending so the result list reads 1st → last.
+              const ordered = isPlacementGame
+                ? [...session.players].sort(
+                    (a, b) =>
+                      (session.scores[a]?.Place ?? 99) - (session.scores[b]?.Place ?? 99),
+                  )
+                : session.players;
+              return ordered.map(pid => {
+                const p = resolvePlayer(session, pid, players);
+                if (!p) return null;
+                const isWinner = pid === session.winner;
+                const place = isPlacementGame ? session.scores[pid]?.Place : undefined;
+                const value = isPlacementGame
+                  ? `${getPlacementPoints(place, game)} pt${getPlacementPoints(place, game) === 1 ? '' : 's'}`
+                  : formatScore(getPlayerTotal(session.scores[pid] ?? {}));
+                return (
+                  <View
+                    key={pid}
+                    style={[styles.scoreRow, isWinner && { backgroundColor: p.color + '18' }]}
                   >
-                    {p.name}
-                  </AppText>
-                  {isWinner && (
-                    <AppText style={{ marginRight: Spacing.xs }}>👑</AppText>
-                  )}
-                  <AppText size="lg" weight="heavy" color={isWinner ? p.color : Colors.textPrimary}>
-                    {formatScore(total)}
-                  </AppText>
-                </View>
-              );
-            })}
+                    <Avatar name={p.name} color={p.color} size="sm" />
+                    <AppText
+                      size="md"
+                      weight={isWinner ? 'bold' : 'regular'}
+                      style={{ flex: 1, marginLeft: Spacing.sm }}
+                    >
+                      {p.name}
+                    </AppText>
+                    {isPlacementGame && place !== undefined && (
+                      <AppText
+                        size="xs"
+                        color={Colors.textSecondary}
+                        style={{ marginRight: Spacing.sm }}
+                      >
+                        {formatPlace(place)}
+                      </AppText>
+                    )}
+                    {isWinner && (
+                      <AppText style={{ marginRight: Spacing.xs }}>👑</AppText>
+                    )}
+                    <AppText size="lg" weight="heavy" color={isWinner ? p.color : Colors.textPrimary}>
+                      {value}
+                    </AppText>
+                  </View>
+                );
+              });
+            })()}
           </View>
         )}
 

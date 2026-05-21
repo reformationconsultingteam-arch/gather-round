@@ -47,10 +47,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         getSessions(),
       ]);
 
+      // Preset migration: ensure any new preset games added in later releases
+      // are seeded into existing installs (without wiping custom games).
       let resolvedGames = storedGames;
+      const storedIds = new Set(storedGames.map(g => g.id));
+      const missingPresets = PRESET_GAMES.filter(p => !storedIds.has(p.id));
       if (storedGames.length === 0) {
         resolvedGames = PRESET_GAMES;
         await saveGames(PRESET_GAMES);
+      } else if (missingPresets.length > 0) {
+        resolvedGames = [...storedGames, ...missingPresets];
+        await saveGames(resolvedGames);
       }
 
       setPlayers(storedPlayers);

@@ -9,7 +9,13 @@ import { useData } from '../../src/context/DataContext';
 import { useSessionFlow } from '../../src/context/SessionFlowContext';
 import { AppText, Avatar, PrimaryButton } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
-import { calculateWinner, formatScore, getPlayerTotal } from '../../src/utils/scoring';
+import {
+  calculateWinner,
+  formatScore,
+  getPlayerTotal,
+  getPlacementPoints,
+  formatPlace,
+} from '../../src/utils/scoring';
 import { Player, Game } from '../../src/types';
 
 // ─── Score input for a single field ──────────────────────────────────────────
@@ -54,6 +60,27 @@ function ScoreField({
     </View>
   );
 }
+
+const placeStyles = StyleSheet.create({
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  pill: {
+    minWidth: 48,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
 
 const fieldStyles = StyleSheet.create({
   row: {
@@ -116,6 +143,108 @@ export default function EnterScoresScreen() {
   }, [game, flow, addSession, router]);
 
   if (!game) return null;
+
+  // ── Placement mode ──────────────────────────────────────────────────────────
+  if (game.scoreType === 'placement') {
+    const n = sessionPlayers.length;
+    const placeOf = (pid: string) => flow.scores[pid]?.Place;
+
+    // Validation: every place from 1..n must appear exactly once
+    const placesUsed = sessionPlayers
+      .map(p => placeOf(p.id))
+      .filter((v): v is number => Number.isFinite(v) && (v as number) >= 1 && (v as number) <= n);
+    const placeCounts: Record<number, number> = {};
+    for (const place of placesUsed) {
+      placeCounts[place] = (placeCounts[place] ?? 0) + 1;
+    }
+    const isDuplicate = (place: number | undefined) =>
+      Number.isFinite(place) && (placeCounts[place as number] ?? 0) > 1;
+    const allAssigned = placesUsed.length === n;
+    const noDuplicates = Object.values(placeCounts).every(c => c === 1);
+    const isValid = allAssigned && noDuplicates;
+
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <AppText size="sm" color={Colors.textSecondary} style={styles.hint}>
+            Tap a place for each player ({game.placementPoints ? game.placementPoints.join(' / ') : '5 / 3 / 2 / 1 / 0'} pts)
+          </AppText>
+
+          {sessionPlayers.map(player => {
+            const place = placeOf(player.id);
+            const dup = isDuplicate(place);
+            const points = place ? getPlacementPoints(place, game) : 0;
+
+            return (
+              <View
+                key={player.id}
+                style={[
+                  styles.playerCard,
+                  dup && { borderColor: Colors.danger ?? '#FF6B6B' },
+                ]}
+              >
+                <View style={styles.playerHeader}>
+                  <Avatar name={player.name} color={player.color} size="sm" />
+                  <AppText size="md" weight="bold" style={{ flex: 1, marginLeft: Spacing.sm }}>
+                    {player.name}
+                  </AppText>
+                  <View style={[styles.totalBadge, { borderColor: player.color + '66' }]}>
+                    <AppText size="xs" color={Colors.textSecondary}>
+                      {place ? formatPlace(place) : '—'}
+                    </AppText>
+                    <AppText size="lg" weight="heavy" color={place ? player.color : Colors.textMuted}>
+                      {place ? `${points} pt${points === 1 ? '' : 's'}` : '—'}
+                    </AppText>
+                  </View>
+                </View>
+
+                {/* Place pills */}
+                <View style={placeStyles.pillRow}>
+                  {Array.from({ length: n }, (_, i) => i + 1).map(p => {
+                    const selected = place === p;
+                    return (
+                      <Pressable
+                        key={p}
+                        onPress={() => flow.setFieldScore(player.id, 'Place', p)}
+                        style={({ pressed }) => [
+                          placeStyles.pill,
+                          selected && { backgroundColor: player.color, borderColor: player.color },
+                          dup && selected && { borderColor: Colors.danger ?? '#FF6B6B' },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <AppText
+                          size="sm"
+                          weight="bold"
+                          color={selected ? '#fff' : Colors.textPrimary}
+                        >
+                          {formatPlace(p)}
+                        </AppText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+
+          {!isValid && (
+            <AppText size="sm" color={Colors.textMuted} align="center" style={{ marginTop: Spacing.sm }}>
+              {!allAssigned
+                ? 'Assign a place to every player.'
+                : 'Each place can only be used once.'}
+            </AppText>
+          )}
+        </ScrollView>
+        <View style={styles.footer}>
+          <PrimaryButton label="Save Session" onPress={handleSave} disabled={!isValid} />
+        </View>
+      </View>
+    );
+  }
 
   // ── Winner-pick mode ────────────────────────────────────────────────────────
   if (game.scoreType === 'winner') {

@@ -15,15 +15,17 @@ import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Game, ScoreType } from '../../src/types';
 
 const SCORE_TYPE_LABEL: Record<ScoreType, string> = {
-  highest: 'Highest wins',
-  lowest:  'Lowest wins',
-  winner:  'Pick winner',
+  highest:   'Highest wins',
+  lowest:    'Lowest wins',
+  winner:    'Pick winner',
+  placement: 'Placement',
 };
 
 const SCORE_TYPE_COLOR: Record<ScoreType, string> = {
-  highest: '#6BCB77',
-  lowest:  '#FF922B',
-  winner:  '#4D96FF',
+  highest:   '#6BCB77',
+  lowest:    '#FF922B',
+  winner:    '#4D96FF',
+  placement: '#C56BFF',
 };
 
 function ScoreBadge({ type }: { type: ScoreType }) {

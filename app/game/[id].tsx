@@ -51,6 +51,7 @@ export default function GameStatsScreen() {
   }
 
   const isPointsGame = game.scoreType !== 'winner';
+  const isPlacementGame = game.scoreType === 'placement';
 
   const maxWins = rankedPlayers[0]?.wins ?? 1;
 
@@ -75,11 +76,18 @@ export default function GameStatsScreen() {
         {isPointsGame && bestScore && (
           <>
             <SectionLabel>
-              {game.scoreType === 'lowest' ? 'BEST (LOWEST) SCORE' : 'ALL-TIME HIGH SCORE'}
+              {isPlacementGame
+                ? 'MOST 1ST-PLACE FINISHES'
+                : game.scoreType === 'lowest' ? 'BEST (LOWEST) SCORE' : 'ALL-TIME HIGH SCORE'}
             </SectionLabel>
             <Card style={styles.highScoreCard} padding={Spacing.md}>
               <AppText size="display" weight="heavy" color={bestScore.playerColor} align="center">
                 {formatScore(bestScore.score)}
+                {isPlacementGame && (
+                  <AppText size="lg" weight="semibold" color={Colors.textSecondary}>
+                    {' '}wins
+                  </AppText>
+                )}
               </AppText>
               <View style={styles.highScorePlayer}>
                 <Avatar name={bestScore.playerName} color={bestScore.playerColor} size="sm" />
