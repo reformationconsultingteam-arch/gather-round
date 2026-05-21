@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,26 +10,35 @@ import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { getGameBestScore, getGameWinsPerPlayer } from '../../src/utils/stats';
 import { formatScore } from '../../src/utils/scoring';
 import { resolvePlayer } from '../../src/utils/players';
+import { filterSessionsByGroup } from '../../src/utils/groups';
 
 export default function GameStatsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { games, sessions, players } = useData();
+  const { games, sessions, players, groups } = useData();
   const router = useRouter();
+  const [groupId, setGroupId] = useState<string | null>(null);
 
   const game = games.find(g => g.id === id);
+
+  // Apply group filter before computing per-game derivatives.
+  const scopedSessions = useMemo(
+    () => filterSessionsByGroup(sessions, groupId, players),
+    [sessions, groupId, players],
+  );
+
   const gameSessions = useMemo(
-    () => sessions.filter(s => s.gameId === id).reverse(),
-    [sessions, id],
+    () => scopedSessions.filter(s => s.gameId === id).reverse(),
+    [scopedSessions, id],
   );
 
   const bestScore = useMemo(
-    () => (id && game) ? getGameBestScore(sessions, id, game.scoreType) : null,
-    [sessions, id, game],
+    () => (id && game) ? getGameBestScore(scopedSessions, id, game.scoreType) : null,
+    [scopedSessions, id, game],
   );
 
   const winsPerPlayer = useMemo(
-    () => id ? getGameWinsPerPlayer(sessions, id) : {},
-    [sessions, id],
+    () => id ? getGameWinsPerPlayer(scopedSessions, id) : {},
+    [scopedSessions, id],
   );
 
   // Rank players by wins for this game (must be called before any early return — Rules of Hooks)
@@ -71,6 +80,48 @@ export default function GameStatsScreen() {
             Played {gameSessions.length} time{gameSessions.length !== 1 ? 's' : ''}
           </AppText>
         </View>
+
+        {/* Group scope chips */}
+        {groups.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scopeRow}
+          >
+            <Pressable
+              onPress={() => setGroupId(null)}
+              style={({ pressed }) => [
+                styles.scopeChip,
+                groupId === null && { backgroundColor: Colors.accent, borderColor: Colors.accent },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <View style={[styles.scopeChipDot, { backgroundColor: groupId === null ? '#fff' : Colors.accent }]} />
+              <AppText size="sm" weight="semibold" color={groupId === null ? '#fff' : Colors.textPrimary}>
+                All
+              </AppText>
+            </Pressable>
+            {groups.map(g => {
+              const selected = groupId === g.id;
+              return (
+                <Pressable
+                  key={g.id}
+                  onPress={() => setGroupId(g.id)}
+                  style={({ pressed }) => [
+                    styles.scopeChip,
+                    selected && { backgroundColor: g.color, borderColor: g.color },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <View style={[styles.scopeChipDot, { backgroundColor: selected ? '#fff' : g.color }]} />
+                  <AppText size="sm" weight="semibold" color={selected ? '#fff' : Colors.textPrimary}>
+                    {g.name}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* Best score */}
         {isPointsGame && bestScore && (
@@ -199,6 +250,30 @@ const styles = StyleSheet.create({
   },
   scroll: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xxl },
   hero: { alignItems: 'center', paddingVertical: Spacing.lg },
+  scopeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: 2,
+    paddingBottom: Spacing.md,
+  },
+  scopeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    minHeight: 32,
+  },
+  scopeChipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
   emoji: { fontSize: 64, marginBottom: Spacing.sm },
   sectionLabel: {
     letterSpacing: 0.8,

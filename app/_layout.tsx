@@ -28,6 +28,10 @@ export default function RootLayout() {
           name="modals/add-game"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="modals/manage-groups"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
         <Stack.Screen name="history" options={HEADER_OPTS} />
         <Stack.Screen name="player" options={HEADER_OPTS} />
         <Stack.Screen name="game" options={HEADER_OPTS} />

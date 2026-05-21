@@ -12,12 +12,12 @@ import {
   getWinRate,
   getHeadToHead,
 } from '../../src/utils/stats';
+import { filterSessionsByGroup } from '../../src/utils/groups';
 import { Player } from '../../src/types';
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
-function Leaderboard() {
-  const { players, sessions } = useData();
+function Leaderboard({ players, sessions }: { players: Player[]; sessions: import('../../src/types').Session[] }) {
   const router = useRouter();
 
   const ranked = useMemo(() => {
@@ -97,8 +97,13 @@ function Leaderboard() {
 
 // ─── Head-to-head ─────────────────────────────────────────────────────────────
 
-function HeadToHead() {
-  const { players, sessions } = useData();
+function HeadToHead({
+  players,
+  sessions,
+}: {
+  players: Player[];
+  sessions: import('../../src/types').Session[];
+}) {
   const [p1Id, setP1Id] = useState<string | null>(null);
   const [p2Id, setP2Id] = useState<string | null>(null);
   const [picking, setPicking] = useState<1 | 2 | null>(null);
@@ -269,8 +274,8 @@ function LegendSwatch({ color, label }: { color: string; label: string }) {
 
 // ─── Games section ────────────────────────────────────────────────────────────
 
-function GamesSection() {
-  const { games, sessions } = useData();
+function GamesSection({ sessions }: { sessions: import('../../src/types').Session[] }) {
+  const { games } = useData();
   const router = useRouter();
   const played = games.filter(g => sessions.some(s => s.gameId === g.id));
 
@@ -300,21 +305,109 @@ function GamesSection() {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function StatsScreen() {
+  const { players, sessions, groups } = useData();
+  const router = useRouter();
+  const [groupId, setGroupId] = useState<string | null>(null);
+
+  const filteredSessions = useMemo(
+    () => filterSessionsByGroup(sessions, groupId, players),
+    [sessions, groupId, players],
+  );
+
+  // For group views, only show players who are members of that group.
+  const filteredPlayers = useMemo(() => {
+    if (!groupId) return players;
+    return players.filter(p => p.groupIds?.includes(groupId));
+  }, [players, groupId]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <ScreenHeader title="Stats" />
 
+        {/* Group scope chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scopeRow}
+        >
+          <GroupChip
+            label="All"
+            color={Colors.accent}
+            selected={groupId === null}
+            onPress={() => setGroupId(null)}
+          />
+          {groups.map(g => (
+            <GroupChip
+              key={g.id}
+              label={g.name}
+              color={g.color}
+              selected={groupId === g.id}
+              onPress={() => setGroupId(g.id)}
+            />
+          ))}
+          <Pressable
+            onPress={() => router.push('/modals/manage-groups')}
+            style={({ pressed }) => [
+              styles.scopeAdd,
+              pressed && { opacity: 0.6 },
+            ]}
+            hitSlop={8}
+          >
+            <Ionicons name="add" size={16} color={Colors.textSecondary} />
+            <AppText size="sm" color={Colors.textSecondary} style={{ marginLeft: 4 }}>
+              {groups.length === 0 ? 'Add group' : 'Manage'}
+            </AppText>
+          </Pressable>
+        </ScrollView>
+
         <SectionLabel>LEADERBOARD</SectionLabel>
-        <Leaderboard />
+        <Leaderboard players={filteredPlayers} sessions={filteredSessions} />
 
         <SectionLabel>HEAD TO HEAD</SectionLabel>
-        <HeadToHead />
+        <HeadToHead players={filteredPlayers} sessions={filteredSessions} />
 
         <SectionLabel>GAMES PLAYED</SectionLabel>
-        <GamesSection />
+        <GamesSection sessions={filteredSessions} />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function GroupChip({
+  label,
+  color,
+  selected,
+  onPress,
+}: {
+  label: string;
+  color: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.scopeChip,
+        selected && { backgroundColor: color, borderColor: color },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <View
+        style={[
+          styles.scopeChipDot,
+          { backgroundColor: selected ? '#fff' : color },
+        ]}
+      />
+      <AppText
+        size="sm"
+        weight="semibold"
+        color={selected ? '#fff' : Colors.textPrimary}
+      >
+        {label}
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -330,6 +423,43 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   scroll: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xxl },
   sectionLabel: { letterSpacing: 0.8, marginBottom: Spacing.sm, marginLeft: Spacing.xs },
+
+  // Group scope chips
+  scopeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: 2,
+    paddingVertical: Spacing.sm,
+  },
+  scopeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    minHeight: 32,
+  },
+  scopeChipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  scopeAdd: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    minHeight: 32,
+  },
 
   // Leaderboard
   lbRow: {

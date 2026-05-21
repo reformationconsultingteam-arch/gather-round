@@ -4,6 +4,15 @@ export interface Player {
   id: string;
   name: string;
   color: string;
+  /** Optional list of group IDs this player belongs to. A player can be in multiple groups. */
+  groupIds?: string[];
+}
+
+/** A user-defined grouping of players (e.g. "Family", "Friends"). */
+export interface Group {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export interface Game {

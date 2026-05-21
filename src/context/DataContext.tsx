@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { Player, Game, Session } from '../types';
+import { Player, Game, Session, Group } from '../types';
 import {
   getPlayers, savePlayers,
   getGames, saveGames,
   getSessions, saveSessions,
+  getGroups, saveGroups,
 } from '../storage';
 import { PRESET_GAMES } from '../data/presetGames';
 import { colorForIndex } from '../data/colors';
@@ -14,12 +15,20 @@ interface DataContextValue {
   players: Player[];
   games: Game[];
   sessions: Session[];
+  groups: Group[];
   loading: boolean;
 
   // Player actions
-  addPlayer: (name: string) => Player;
+  addPlayer: (name: string, groupIds?: string[]) => Player;
   renamePlayer: (id: string, name: string) => void;
   deletePlayer: (id: string) => void;
+  setPlayerGroups: (id: string, groupIds: string[]) => void;
+
+  // Group actions
+  addGroup: (name: string) => Group;
+  renameGroup: (id: string, name: string) => void;
+  recolorGroup: (id: string, color: string) => void;
+  deleteGroup: (id: string) => void;
 
   // Game actions
   addCustomGame: (game: Omit<Game, 'id' | 'custom' | 'scorecardFields'>) => Game;
@@ -36,15 +45,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load all data on mount; seed preset games on first launch
   useEffect(() => {
     async function bootstrap() {
-      const [storedPlayers, storedGames, storedSessions] = await Promise.all([
+      const [storedPlayers, storedGames, storedSessions, storedGroups] = await Promise.all([
         getPlayers(),
         getGames(),
         getSessions(),
+        getGroups(),
       ]);
 
       // Preset migration: ensure any new preset games added in later releases
@@ -63,6 +74,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setPlayers(storedPlayers);
       setGames(resolvedGames);
       setSessions(storedSessions);
+      setGroups(storedGroups);
       setLoading(false);
     }
     bootstrap();
@@ -70,11 +82,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // --- Player actions ---
 
-  const addPlayer = useCallback((name: string): Player => {
+  const addPlayer = useCallback((name: string, groupIds?: string[]): Player => {
     const player: Player = {
       id: uuid.v4() as string,
       name: name.trim(),
       color: colorForIndex(players.length),
+      ...(groupIds && groupIds.length > 0 ? { groupIds } : {}),
     };
     const next = [...players, player];
     setPlayers(next);
@@ -94,6 +107,53 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setPlayers(next);
     savePlayers(next);
   }, [players]);
+
+  const setPlayerGroups = useCallback((id: string, groupIds: string[]) => {
+    const next = players.map(p => p.id === id ? { ...p, groupIds: [...groupIds] } : p);
+    setPlayers(next);
+    savePlayers(next);
+  }, [players]);
+
+  // --- Group actions ---
+
+  const addGroup = useCallback((name: string): Group => {
+    const group: Group = {
+      id: uuid.v4() as string,
+      name: name.trim(),
+      color: colorForIndex(groups.length),
+    };
+    const next = [...groups, group];
+    setGroups(next);
+    saveGroups(next);
+    return group;
+  }, [groups]);
+
+  const renameGroup = useCallback((id: string, name: string) => {
+    const next = groups.map(g => g.id === id ? { ...g, name: name.trim() } : g);
+    setGroups(next);
+    saveGroups(next);
+  }, [groups]);
+
+  const recolorGroup = useCallback((id: string, color: string) => {
+    const next = groups.map(g => g.id === id ? { ...g, color } : g);
+    setGroups(next);
+    saveGroups(next);
+  }, [groups]);
+
+  const deleteGroup = useCallback((id: string) => {
+    // Remove the group itself, then scrub the id from every player's groupIds.
+    const nextGroups = groups.filter(g => g.id !== id);
+    setGroups(nextGroups);
+    saveGroups(nextGroups);
+
+    const nextPlayers = players.map(p => {
+      if (!p.groupIds || !p.groupIds.includes(id)) return p;
+      const filtered = p.groupIds.filter(gid => gid !== id);
+      return { ...p, groupIds: filtered };
+    });
+    setPlayers(nextPlayers);
+    savePlayers(nextPlayers);
+  }, [groups, players]);
 
   // --- Game actions ---
 
@@ -141,8 +201,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      players, games, sessions, loading,
-      addPlayer, renamePlayer, deletePlayer,
+      players, games, sessions, groups, loading,
+      addPlayer, renamePlayer, deletePlayer, setPlayerGroups,
+      addGroup, renameGroup, recolorGroup, deleteGroup,
       addCustomGame, deleteCustomGame,
       addSession, deleteSession,
     }}>

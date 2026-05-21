@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Player, Game, Session } from '../types';
+import { Player, Game, Session, Group } from '../types';
 
 const KEYS = {
   players: '@gatherround/players',
   games: '@gatherround/games',
   sessions: '@gatherround/sessions',
+  groups: '@gatherround/groups',
 } as const;
 
 async function load<T>(key: string): Promise<T[]> {
@@ -28,3 +29,6 @@ export const saveGames = (data: Game[]) => save(KEYS.games, data);
 
 export const getSessions = () => load<Session>(KEYS.sessions);
 export const saveSessions = (data: Session[]) => save(KEYS.sessions, data);
+
+export const getGroups = () => load<Group>(KEYS.groups);
+export const saveGroups = (data: Group[]) => save(KEYS.groups, data);
