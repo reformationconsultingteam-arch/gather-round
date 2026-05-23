@@ -3,7 +3,6 @@ import {
   FlatList,
   View,
   Pressable,
-  Alert,
   Modal,
   StyleSheet,
 } from 'react-native';
@@ -11,7 +10,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
-import { AppText, Avatar, PrimaryButton, GhostButton } from '../../src/components';
+import {
+  AppText,
+  Avatar,
+  PrimaryButton,
+  GhostButton,
+  ActionSheet,
+  PromptDialog,
+  ActionSheetAction,
+} from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Player } from '../../src/types';
 
@@ -19,57 +26,42 @@ export default function PlayersScreen() {
   const { players, groups, renamePlayer, deletePlayer, setPlayerGroups } = useData();
   const router = useRouter();
 
+  // Three independent overlay states so the ActionSheet can dismiss before
+  // the follow-up Rename / Edit-groups dialog opens.
+  const [actionsFor, setActionsFor] = useState<Player | null>(null);
+  const [renamingPlayer, setRenamingPlayer] = useState<Player | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [editSelection, setEditSelection] = useState<Set<string>>(new Set());
+
+  const openOptions = useCallback((player: Player) => {
+    setActionsFor(player);
+  }, []);
 
   const openEditGroups = useCallback((player: Player) => {
     setEditingPlayer(player);
     setEditSelection(new Set(player.groupIds ?? []));
   }, []);
 
-  const handleLongPress = useCallback((player: Player) => {
-    Alert.alert(player.name, undefined, [
-      {
-        text: 'Rename',
-        onPress: () => {
-          Alert.prompt(
-            'Rename Player',
-            undefined,
-            (newName) => {
-              if (newName && newName.trim()) {
-                renamePlayer(player.id, newName.trim());
-              }
-            },
-            'plain-text',
-            player.name,
-          );
-        },
+  const actionsForPlayer = (player: Player): ActionSheetAction[] => [
+    {
+      label: 'Rename',
+      onPress: () => setRenamingPlayer(player),
+    },
+    {
+      label: 'Edit groups',
+      onPress: () => openEditGroups(player),
+    },
+    {
+      label: 'Delete',
+      destructive: true,
+      onPress: () => deletePlayer(player.id),
+      confirmation: {
+        title: `Delete ${player.name}?`,
+        message: 'Their game history will be preserved.',
+        confirmLabel: 'Delete',
       },
-      {
-        text: 'Edit groups',
-        onPress: () => openEditGroups(player),
-      },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          Alert.alert(
-            `Delete ${player.name}?`,
-            'Their game history will be preserved.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: () => deletePlayer(player.id),
-              },
-            ],
-          );
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, [renamePlayer, deletePlayer, openEditGroups]);
+    },
+  ];
 
   function saveEditGroups() {
     if (!editingPlayer) return;
@@ -124,7 +116,7 @@ export default function PlayersScreen() {
             <Pressable
               style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
               onPress={() => router.push(`/player/${item.id}`)}
-              onLongPress={() => handleLongPress(item)}
+              onLongPress={() => openOptions(item)}
               delayLongPress={300}
             >
               <Avatar name={item.name} color={item.color} size="md" />
@@ -146,14 +138,44 @@ export default function PlayersScreen() {
                       )}
                     </>
                   ) : (
-                    <AppText size="xs" color={Colors.textMuted}>Long-press for options</AppText>
+                    <AppText size="xs" color={Colors.textMuted}>Tap ⋯ for options</AppText>
                   )}
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  openOptions(item);
+                }}
+                hitSlop={12}
+                style={({ pressed }) => [styles.moreBtn, pressed && { opacity: 0.6 }]}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textSecondary} />
+              </Pressable>
             </Pressable>
           );
         }}
+      />
+
+      {/* Per-row options (Rename / Edit groups / Delete) */}
+      <ActionSheet
+        visible={!!actionsFor}
+        title={actionsFor?.name}
+        actions={actionsFor ? actionsForPlayer(actionsFor) : []}
+        onClose={() => setActionsFor(null)}
+      />
+
+      {/* Rename prompt */}
+      <PromptDialog
+        visible={!!renamingPlayer}
+        title="Rename Player"
+        initialValue={renamingPlayer?.name ?? ''}
+        placeholder="Player name"
+        onSubmit={(name) => {
+          if (renamingPlayer) renamePlayer(renamingPlayer.id, name);
+          setRenamingPlayer(null);
+        }}
+        onClose={() => setRenamingPlayer(null)}
       />
 
       {/* Edit-groups modal — re-uses the same chip UI as add-player */}
@@ -280,6 +302,14 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     marginRight: 4,
+  },
+  moreBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.xs,
   },
   separator: {
     height: Spacing.sm,

@@ -15,8 +15,8 @@
 
 ## Tabs
 - `app/(tabs)/index.tsx` — Home (stat cards, recent sessions, "New Session" FAB).
-- `app/(tabs)/games.tsx` — Preset + custom games list, long-press a custom game to delete.
-- `app/(tabs)/players.tsx` — Players list. Header has tags icon → `manage-groups`, "+" → `add-player`. Per-player rows show small colored group dots. Long-press → rename / edit groups / delete.
+- `app/(tabs)/games.tsx` — Preset + custom games list. Custom-game rows show a "⋯" button (long-press also supported) → delete via `ActionSheet`.
+- `app/(tabs)/players.tsx` — Players list. Header has tags icon → `manage-groups`, "+" → `add-player`. Per-player rows show small colored group dots. Tap "⋯" (or long-press) → rename / edit groups / delete, via `ActionSheet` + `PromptDialog`.
 - `app/(tabs)/stats.tsx` — Group-scope chip row + Leaderboard + head-to-head picker + games-played list. All three sections recompute when the group filter changes.
 
 ## Detail screens
@@ -46,4 +46,4 @@
 - `src/utils/stats.ts` — all analytics (win counts, streaks, head-to-head, etc.). `getGameBestScore` returns "most 1st-place finishes" for placement games.
 - `src/utils/players.ts` — `resolvePlayer(session, id, livePlayers)`: live → snapshot → null lookup used by every history-style screen.
 - `src/utils/groups.ts` — `filterSessionsByGroup(sessions, groupId, players)`: returns sessions where every participant is in `groupId`, or all sessions if `groupId` is null.
-- `src/components/` — `AppText`, `Avatar`, `Card`, `Buttons` (Primary/Ghost), `ScreenHeader`, plus barrel `index.ts`.
+- `src/components/` — `AppText`, `Avatar`, `Card`, `Buttons` (Primary/Ghost), `ScreenHeader`, `ActionSheet` (web-safe replacement for multi-button `Alert.alert`), `PromptDialog` (web-safe replacement for iOS-only `Alert.prompt`), plus barrel `index.ts`.

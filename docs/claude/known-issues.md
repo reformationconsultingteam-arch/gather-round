@@ -24,6 +24,9 @@ Expo Router's `app/+html.tsx` only runs when `web.output` is `static`. We use `o
 ## Service worker scope is `/gather-round/`
 Workbox generates `dist/sw.js`. Because GitHub Pages serves the SW at `https://<user>.github.io/gather-round/sw.js`, its scope is automatically `/gather-round/` — limited to this app's path. If we ever move to a host that serves at root, scope expands to the whole origin (still fine, but worth knowing).
 
+## `Alert.alert` multi-button and `Alert.prompt` don't work on web
+`react-native-web` collapses `Alert.alert(title, msg, [a, b, c])` to a single `window.confirm`, and `Alert.prompt` doesn't exist on web at all (iOS-only). Anywhere we'd previously have reached for a native Alert, use [`ActionSheet`](../../src/components/ActionSheet.tsx) and [`PromptDialog`](../../src/components/PromptDialog.tsx) — both are in-app React Native `Modal`s that work identically on web and native. Long-press is **also** unreliable on mobile browsers (iOS Safari steals it for text selection / link previews), so every screen that used long-press now exposes the same options behind a visible "⋯" tap target; long-press remains as a parallel path for users whose browser cooperates.
+
 ## "No route named X" warnings on web
 `app/_layout.tsx` has `Stack.Screen` entries named `history`, `player`, `game` referencing folders, but those folders contain `index.tsx` + `[id].tsx` without their own `_layout.tsx`. Expo Router 6 logs `[Layout children]: No route named "history" exists` warnings during dev. The screens still render; the warnings are because the `HEADER_OPTS` options don't actually apply (those folder screens fall back to default styling). Pre-existing from the iOS app; not blocking. Fix is to either add per-folder `_layout.tsx` files or rename the Stack.Screen entries to e.g. `history/index`.
 

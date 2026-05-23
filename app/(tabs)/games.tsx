@@ -1,16 +1,15 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   SectionList,
   View,
   Pressable,
-  Alert,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
-import { AppText, ScreenHeader, Card } from '../../src/components';
+import { AppText, ScreenHeader, ActionSheet } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Game, ScoreType } from '../../src/types';
 
@@ -38,11 +37,17 @@ function ScoreBadge({ type }: { type: ScoreType }) {
   );
 }
 
-function GameRow({ game, onLongPress }: { game: Game; onLongPress?: () => void }) {
+function GameRow({
+  game,
+  onOpenOptions,
+}: {
+  game: Game;
+  onOpenOptions?: () => void;
+}) {
   return (
     <Pressable
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
-      onLongPress={onLongPress}
+      onLongPress={onOpenOptions}
       delayLongPress={300}
     >
       <AppText style={styles.emoji}>{game.emoji}</AppText>
@@ -55,6 +60,18 @@ function GameRow({ game, onLongPress }: { game: Game; onLongPress?: () => void }
         )}
       </View>
       <ScoreBadge type={game.scoreType} />
+      {onOpenOptions && (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onOpenOptions();
+          }}
+          hitSlop={12}
+          style={({ pressed }) => [styles.moreBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textSecondary} />
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -62,6 +79,8 @@ function GameRow({ game, onLongPress }: { game: Game; onLongPress?: () => void }
 export default function GamesScreen() {
   const { games, deleteCustomGame } = useData();
   const router = useRouter();
+
+  const [actionsFor, setActionsFor] = useState<Game | null>(null);
 
   const sections = useMemo(() => {
     const preset = games.filter(g => !g.custom);
@@ -71,26 +90,10 @@ export default function GamesScreen() {
     return result;
   }, [games]);
 
-  const handleLongPress = useCallback((game: Game) => {
+  const openOptions = useCallback((game: Game) => {
     if (!game.custom) return;
-    Alert.alert(game.name, undefined, [
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          Alert.alert(
-            `Delete "${game.name}"?`,
-            'Past sessions using this game will be unaffected.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Delete', style: 'destructive', onPress: () => deleteCustomGame(game.id) },
-            ],
-          );
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, [deleteCustomGame]);
+    setActionsFor(game);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -120,9 +123,27 @@ export default function GamesScreen() {
         renderItem={({ item }) => (
           <GameRow
             game={item}
-            onLongPress={item.custom ? () => handleLongPress(item) : undefined}
+            onOpenOptions={item.custom ? () => openOptions(item) : undefined}
           />
         )}
+      />
+
+      <ActionSheet
+        visible={!!actionsFor}
+        title={actionsFor?.name}
+        actions={actionsFor ? [
+          {
+            label: 'Delete',
+            destructive: true,
+            onPress: () => deleteCustomGame(actionsFor.id),
+            confirmation: {
+              title: `Delete "${actionsFor.name}"?`,
+              message: 'Past sessions using this game will be unaffected.',
+              confirmLabel: 'Delete',
+            },
+          },
+        ] : []}
+        onClose={() => setActionsFor(null)}
       />
     </SafeAreaView>
   );
@@ -167,6 +188,14 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.full,
     borderWidth: 1,
+  },
+  moreBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.xs,
   },
   separator: {
     height: Spacing.xs,
