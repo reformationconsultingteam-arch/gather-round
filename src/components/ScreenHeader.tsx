@@ -21,18 +21,22 @@ export function ScreenHeader({
       <AppText size="xxl" weight="heavy">
         {title}
       </AppText>
-      {(rightLabel || rightIcon) && onRightPress && (
-        <Pressable
-          onPress={onRightPress}
-          style={({ pressed }) => [styles.rightAction, pressed && { opacity: 0.6 }]}
-          hitSlop={12}
-        >
-          {rightIcon ?? (
-            <AppText size="md" weight="semibold" color={Colors.accent}>
-              {rightLabel}
-            </AppText>
-          )}
-        </Pressable>
+      {(rightLabel || rightIcon) && (
+        onRightPress ? (
+          <Pressable
+            onPress={onRightPress}
+            style={({ pressed }) => [styles.rightAction, pressed && { opacity: 0.6 }]}
+            hitSlop={12}
+          >
+            {rightIcon ?? (
+              <AppText size="md" weight="semibold" color={Colors.accent}>
+                {rightLabel}
+              </AppText>
+            )}
+          </Pressable>
+        ) : (
+          <View style={styles.rightAction}>{rightIcon}</View>
+        )
       )}
     </View>
   );

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { Player, Game, Session, Group } from '../types';
 import {
   getPlayers, savePlayers,
@@ -9,6 +9,7 @@ import {
 import { PRESET_GAMES } from '../data/presetGames';
 import { colorForIndex } from '../data/colors';
 import uuid from 'react-native-uuid';
+import { useSync } from './SyncContext';
 
 interface DataContextValue {
   // State
@@ -41,15 +42,42 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 
+function mergeMissingPresets(games: Game[]): Game[] {
+  const ids = new Set(games.map(g => g.id));
+  const missing = PRESET_GAMES.filter(p => !ids.has(p.id));
+  return missing.length > 0 ? [...games, ...missing] : games;
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const sync = useSync();
+
   const [players, setPlayers] = useState<Player[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load all data on mount; seed preset games on first launch
+  // Suppress remote pushes during hydration from remote pull (we'd be pushing back what we just pulled)
+  const hydratingRef = useRef(false);
+
+  // Track whether we've pulled for the current connection — so reconnecting re-pulls
+  const prevConnectedRef = useRef(false);
+
+  // Push helper that respects the hydration guard and the connection state
+  const pushAll = useCallback((next: {
+    players: Player[];
+    games: Game[];
+    sessions: Session[];
+    groups: Group[];
+  }) => {
+    if (hydratingRef.current) return;
+    if (!sync.isConnected) return;
+    sync.schedulePush(next);
+  }, [sync]);
+
+  // Initial load from local storage (always runs, regardless of sync state)
   useEffect(() => {
+    let cancelled = false;
     async function bootstrap() {
       const [storedPlayers, storedGames, storedSessions, storedGroups] = await Promise.all([
         getPlayers(),
@@ -57,6 +85,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         getSessions(),
         getGroups(),
       ]);
+      if (cancelled) return;
 
       // Preset migration: ensure any new preset games added in later releases
       // are seeded into existing installs (without wiping custom games).
@@ -71,14 +100,69 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         await saveGames(resolvedGames);
       }
 
+      hydratingRef.current = true;
       setPlayers(storedPlayers);
       setGames(resolvedGames);
       setSessions(storedSessions);
       setGroups(storedGroups);
       setLoading(false);
+      // Release guard on next tick so any push triggered by setState commits is suppressed
+      setTimeout(() => { hydratingRef.current = false; }, 0);
     }
     bootstrap();
+    return () => { cancelled = true; };
   }, []);
+
+  // Pull from remote when (and only when) we transition into a connected state
+  useEffect(() => {
+    if (loading) return;
+    if (!sync.configLoaded) return;
+
+    if (sync.isConnected && !prevConnectedRef.current) {
+      prevConnectedRef.current = true;
+      let cancelled = false;
+      (async () => {
+        const remote = await sync.refresh();
+        if (cancelled || !remote) return;
+        const mergedGames = mergeMissingPresets(remote.games);
+        hydratingRef.current = true;
+        setPlayers(remote.players);
+        setGames(mergedGames);
+        setSessions(remote.sessions);
+        setGroups(remote.groups);
+        await Promise.all([
+          savePlayers(remote.players),
+          saveGames(mergedGames),
+          saveSessions(remote.sessions),
+          saveGroups(remote.groups),
+        ]);
+        setTimeout(() => { hydratingRef.current = false; }, 0);
+        // If we added missing presets locally, push them up so remote stays in sync
+        if (mergedGames.length !== remote.games.length) {
+          sync.schedulePush({
+            players: remote.players,
+            games: mergedGames,
+            sessions: remote.sessions,
+            groups: remote.groups,
+          });
+        }
+      })();
+      return () => { cancelled = true; };
+    } else if (!sync.isConnected) {
+      prevConnectedRef.current = false;
+    }
+  }, [loading, sync.configLoaded, sync.isConnected, sync]);
+
+  // Flush any pending push before the page unloads, so a fresh edit isn't lost
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      // Best-effort; sendBeacon-like flush would be needed for true reliability
+      void sync.flushPushNow();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [sync]);
 
   // --- Player actions ---
 
@@ -92,27 +176,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const next = [...players, player];
     setPlayers(next);
     savePlayers(next);
+    pushAll({ players: next, games, sessions, groups });
     return player;
-  }, [players]);
+  }, [players, games, sessions, groups, pushAll]);
 
   const renamePlayer = useCallback((id: string, name: string) => {
     const next = players.map(p => p.id === id ? { ...p, name: name.trim() } : p);
     setPlayers(next);
     savePlayers(next);
-  }, [players]);
+    pushAll({ players: next, games, sessions, groups });
+  }, [players, games, sessions, groups, pushAll]);
 
   const deletePlayer = useCallback((id: string) => {
-    // Remove from player list only; sessions retain the id (name resolved at render time from sessions)
     const next = players.filter(p => p.id !== id);
     setPlayers(next);
     savePlayers(next);
-  }, [players]);
+    pushAll({ players: next, games, sessions, groups });
+  }, [players, games, sessions, groups, pushAll]);
 
   const setPlayerGroups = useCallback((id: string, groupIds: string[]) => {
     const next = players.map(p => p.id === id ? { ...p, groupIds: [...groupIds] } : p);
     setPlayers(next);
     savePlayers(next);
-  }, [players]);
+    pushAll({ players: next, games, sessions, groups });
+  }, [players, games, sessions, groups, pushAll]);
 
   // --- Group actions ---
 
@@ -125,23 +212,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const next = [...groups, group];
     setGroups(next);
     saveGroups(next);
+    pushAll({ players, games, sessions, groups: next });
     return group;
-  }, [groups]);
+  }, [players, games, sessions, groups, pushAll]);
 
   const renameGroup = useCallback((id: string, name: string) => {
     const next = groups.map(g => g.id === id ? { ...g, name: name.trim() } : g);
     setGroups(next);
     saveGroups(next);
-  }, [groups]);
+    pushAll({ players, games, sessions, groups: next });
+  }, [players, games, sessions, groups, pushAll]);
 
   const recolorGroup = useCallback((id: string, color: string) => {
     const next = groups.map(g => g.id === id ? { ...g, color } : g);
     setGroups(next);
     saveGroups(next);
-  }, [groups]);
+    pushAll({ players, games, sessions, groups: next });
+  }, [players, games, sessions, groups, pushAll]);
 
   const deleteGroup = useCallback((id: string) => {
-    // Remove the group itself, then scrub the id from every player's groupIds.
     const nextGroups = groups.filter(g => g.id !== id);
     setGroups(nextGroups);
     saveGroups(nextGroups);
@@ -153,7 +242,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     setPlayers(nextPlayers);
     savePlayers(nextPlayers);
-  }, [groups, players]);
+
+    pushAll({ players: nextPlayers, games, sessions, groups: nextGroups });
+  }, [groups, players, games, sessions, pushAll]);
 
   // --- Game actions ---
 
@@ -169,14 +260,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const next = [...games, newGame];
     setGames(next);
     saveGames(next);
+    pushAll({ players, games: next, sessions, groups });
     return newGame;
-  }, [games]);
+  }, [players, games, sessions, groups, pushAll]);
 
   const deleteCustomGame = useCallback((id: string) => {
     const next = games.filter(g => g.id !== id || !g.custom);
     setGames(next);
     saveGames(next);
-  }, [games]);
+    pushAll({ players, games: next, sessions, groups });
+  }, [players, games, sessions, groups, pushAll]);
 
   // --- Session actions ---
 
@@ -190,14 +283,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const next = [...sessions, newSession];
     setSessions(next);
     saveSessions(next);
+    pushAll({ players, games, sessions: next, groups });
     return newSession;
-  }, [sessions, players]);
+  }, [players, games, sessions, groups, pushAll]);
 
   const deleteSession = useCallback((id: string) => {
     const next = sessions.filter(s => s.id !== id);
     setSessions(next);
     saveSessions(next);
-  }, [sessions]);
+    pushAll({ players, games, sessions: next, groups });
+  }, [players, games, sessions, groups, pushAll]);
 
   return (
     <DataContext.Provider value={{

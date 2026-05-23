@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { useData } from '../../src/context/DataContext';
 import { AppText, Avatar, Card, ScreenHeader } from '../../src/components';
+import { SyncStatusPill } from '../../src/components/SyncStatusPill';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { getWinLeader, getMostPlayedGame, getWinCounts } from '../../src/utils/stats';
 import { resolvePlayer } from '../../src/utils/players';
@@ -28,7 +29,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            <ScreenHeader title="Gather Round" />
+            <ScreenHeader
+              title="Gather Round"
+              rightIcon={<SyncStatusPill />}
+            />
 
             {/* Stat cards row */}
             <View style={styles.statsRow}>
