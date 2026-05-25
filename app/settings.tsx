@@ -5,18 +5,21 @@ import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { useSync } from '../src/context/SyncContext';
+import { useData } from '../src/context/DataContext';
 import { AppText, PrimaryButton, GhostButton } from '../src/components';
 import { Colors, Spacing, Radius } from '../src/constants/theme';
 
 export default function SettingsScreen() {
   const sync = useSync();
+  const { pullFromRemote } = useData();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await sync.refresh();
+    // pullFromRemote calls sync.refresh internally AND hydrates DataContext state
+    await pullFromRemote();
     setRefreshing(false);
   }
 

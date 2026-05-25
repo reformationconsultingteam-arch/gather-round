@@ -38,6 +38,9 @@ interface DataContextValue {
   // Session actions
   addSession: (session: Omit<Session, 'id' | 'playerSnapshots'>) => Session;
   deleteSession: (id: string) => void;
+
+  // Sync actions
+  pullFromRemote: () => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -49,7 +52,8 @@ function mergeMissingPresets(games: Game[]): Game[] {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const sync = useSync();
+  // Destructure stable callbacks from sync so effects only re-run when primitives change
+  const { isConnected, configLoaded, refresh: syncRefresh, schedulePush, flushPushNow } = useSync();
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [games, setGames] = useState<Game[]>([]);
@@ -71,9 +75,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     groups: Group[];
   }) => {
     if (hydratingRef.current) return;
-    if (!sync.isConnected) return;
-    sync.schedulePush(next);
-  }, [sync]);
+    if (!isConnected) return;
+    schedulePush(next);
+  }, [isConnected, schedulePush]);
+
+  // Pull from GitHub and reconcile local state. Returns true if remote data was applied.
+  // Exposed via context so Settings's "Refresh from GitHub" actually updates the app.
+  const pullFromRemote = useCallback(async (): Promise<boolean> => {
+    const remote = await syncRefresh();
+    if (!remote) return false;
+    const mergedGames = mergeMissingPresets(remote.games);
+    hydratingRef.current = true;
+    setPlayers(remote.players);
+    setGames(mergedGames);
+    setSessions(remote.sessions);
+    setGroups(remote.groups);
+    await Promise.all([
+      savePlayers(remote.players),
+      saveGames(mergedGames),
+      saveSessions(remote.sessions),
+      saveGroups(remote.groups),
+    ]);
+    setTimeout(() => { hydratingRef.current = false; }, 0);
+    // If we added missing presets locally, push them up so remote stays in sync
+    if (mergedGames.length !== remote.games.length) {
+      schedulePush({
+        players: remote.players,
+        games: mergedGames,
+        sessions: remote.sessions,
+        groups: remote.groups,
+      });
+    }
+    return true;
+  }, [syncRefresh, schedulePush]);
 
   // Initial load from local storage (always runs, regardless of sync state)
   useEffect(() => {
@@ -113,56 +147,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Pull from remote when (and only when) we transition into a connected state
+  // Pull from remote when we transition into a connected state. Deps are primitives + stable callback
+  // so this doesn't re-fire (and cancel itself) when sync status flips to syncing.
   useEffect(() => {
     if (loading) return;
-    if (!sync.configLoaded) return;
-
-    if (sync.isConnected && !prevConnectedRef.current) {
-      prevConnectedRef.current = true;
-      let cancelled = false;
-      (async () => {
-        const remote = await sync.refresh();
-        if (cancelled || !remote) return;
-        const mergedGames = mergeMissingPresets(remote.games);
-        hydratingRef.current = true;
-        setPlayers(remote.players);
-        setGames(mergedGames);
-        setSessions(remote.sessions);
-        setGroups(remote.groups);
-        await Promise.all([
-          savePlayers(remote.players),
-          saveGames(mergedGames),
-          saveSessions(remote.sessions),
-          saveGroups(remote.groups),
-        ]);
-        setTimeout(() => { hydratingRef.current = false; }, 0);
-        // If we added missing presets locally, push them up so remote stays in sync
-        if (mergedGames.length !== remote.games.length) {
-          sync.schedulePush({
-            players: remote.players,
-            games: mergedGames,
-            sessions: remote.sessions,
-            groups: remote.groups,
-          });
-        }
-      })();
-      return () => { cancelled = true; };
-    } else if (!sync.isConnected) {
+    if (!configLoaded) return;
+    if (!isConnected) {
       prevConnectedRef.current = false;
+      return;
     }
-  }, [loading, sync.configLoaded, sync.isConnected, sync]);
+    if (prevConnectedRef.current) return;
+    prevConnectedRef.current = true;
+    void pullFromRemote();
+  }, [loading, configLoaded, isConnected, pullFromRemote]);
 
   // Flush any pending push before the page unloads, so a fresh edit isn't lost
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handler = () => {
       // Best-effort; sendBeacon-like flush would be needed for true reliability
-      void sync.flushPushNow();
+      void flushPushNow();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [sync]);
+  }, [flushPushNow]);
 
   // --- Player actions ---
 
@@ -301,6 +309,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addGroup, renameGroup, recolorGroup, deleteGroup,
       addCustomGame, deleteCustomGame,
       addSession, deleteSession,
+      pullFromRemote,
     }}>
       {children}
     </DataContext.Provider>
