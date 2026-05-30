@@ -1,5 +1,5 @@
 import { Session, Player, Game, ScoreType } from '../types';
-import { getWinningPlayerIds } from './scoring';
+import { getWinningPlayerIds, getPlacementPoints, getPlayerTotal } from './scoring';
 
 // ─── Basic counts ─────────────────────────────────────────────────────────────
 
@@ -115,8 +115,6 @@ export function getHeadToHead(sessions: Session[], p1Id: string, p2Id: string): 
 
 // ─── Per-game stats ───────────────────────────────────────────────────────────
 
-import { getPlayerTotal } from './scoring';
-
 export interface GameBestScore {
   playerId: string;
   score: number;
@@ -185,6 +183,25 @@ export function getGameBestScore(
     }
   }
   return best;
+}
+
+/**
+ * Total accumulated points per player for a single points-based game, summed across the given
+ * sessions. Placement games convert each finishing Place to its rubric points; highest/lowest
+ * games sum the scorecard fields. Only meaningful for highest/lowest/placement games.
+ */
+export function getGamePointsPerPlayer(sessions: Session[], game: Game): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const s of sessions) {
+    for (const pid of s.players) {
+      const sc = s.scores[pid] ?? {};
+      const pts = game.scoreType === 'placement'
+        ? getPlacementPoints(sc.Place, game)
+        : getPlayerTotal(sc);
+      totals[pid] = (totals[pid] ?? 0) + pts;
+    }
+  }
+  return totals;
 }
 
 /** Win count per player for a specific game. Team games credit every winning-team member. */

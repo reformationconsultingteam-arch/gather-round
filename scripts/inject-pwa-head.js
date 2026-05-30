@@ -20,7 +20,31 @@ const HEAD_INJECT = `
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('${BASE_URL}/sw.js').catch(function () {});
+          navigator.serviceWorker.register('${BASE_URL}/sw.js').then(function (reg) {
+            // A worker is "ready to take over" when it reaches installed state while another
+            // worker already controls the page (i.e. a genuine update, not the first install).
+            function notifyReady(worker) {
+              if (!worker || !navigator.serviceWorker.controller) return;
+              window.__swWaiting = worker;
+              window.dispatchEvent(new CustomEvent('swUpdateReady'));
+            }
+            if (reg.waiting) notifyReady(reg.waiting);
+            reg.addEventListener('updatefound', function () {
+              var installing = reg.installing;
+              if (!installing) return;
+              installing.addEventListener('statechange', function () {
+                if (installing.state === 'installed') notifyReady(reg.waiting || installing);
+              });
+            });
+          }).catch(function () {});
+
+          // When the new worker activates, reload once so the page runs the fresh assets.
+          var refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+          });
         });
       }
     </script>
