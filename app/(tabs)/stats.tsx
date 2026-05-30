@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
-import { AppText, Avatar, Card, ScreenHeader } from '../../src/components';
+import { AppText, Avatar, Card, ScreenHeader, GroupChip } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { getWinCounts } from '../../src/utils/stats';
 import { filterSessionsByGroup } from '../../src/utils/groups';
@@ -17,8 +17,8 @@ export default function StatsScreen() {
   const [groupId, setGroupId] = useState<string | null>(null);
 
   const filteredSessions = useMemo(
-    () => filterSessionsByGroup(sessions, groupId, players),
-    [sessions, groupId, players],
+    () => filterSessionsByGroup(sessions, groupId),
+    [sessions, groupId],
   );
 
   const playedGames = useMemo(() => {
@@ -166,26 +166,6 @@ export default function StatsScreen() {
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function GroupChip({
-  label, color, selected, onPress,
-}: { label: string; color: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.scopeChip,
-        selected && { backgroundColor: color, borderColor: color },
-        pressed && { opacity: 0.7 },
-      ]}
-    >
-      <View style={[styles.scopeChipDot, { backgroundColor: selected ? '#fff' : color }]} />
-      <AppText size="sm" weight="semibold" color={selected ? '#fff' : Colors.textPrimary}>
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
 function SectionLabel({ children }: { children: string }) {
   return (
     <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>
@@ -206,18 +186,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     paddingVertical: Spacing.sm,
   },
-  scopeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radius.full,
-    paddingVertical: 6,
-    paddingHorizontal: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    minHeight: 32,
-  },
-  scopeChipDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   scopeAdd: {
     flexDirection: 'row',
     alignItems: 'center',

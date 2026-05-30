@@ -7,3 +7,4 @@ export { ActionSheet } from './ActionSheet';
 export type { ActionSheetAction } from './ActionSheet';
 export { PromptDialog } from './PromptDialog';
 export { UpdateBanner } from './UpdateBanner';
+export { GroupChip } from './GroupChip';

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
-import { AppText, Avatar, Card } from '../../src/components';
+import { AppText, Avatar, Card, GroupChip } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import {
   getWinCounts,
@@ -31,8 +31,8 @@ export default function PerGameStatsScreen() {
   const [groupId, setGroupId] = useState<string | null>(groupIdParam || null);
 
   const groupScoped = useMemo(
-    () => filterSessionsByGroup(sessions, groupId, players),
-    [sessions, groupId, players],
+    () => filterSessionsByGroup(sessions, groupId),
+    [sessions, groupId],
   );
 
   const scopedSessions = useMemo(
@@ -40,10 +40,9 @@ export default function PerGameStatsScreen() {
     [groupScoped, gameId, isAll],
   );
 
-  const filteredPlayers = useMemo(() => {
-    if (!groupId) return players;
-    return players.filter(p => p.groupIds?.includes(groupId));
-  }, [players, groupId]);
+  // Leaderboard scopes itself to players with played > 0 within scopedSessions (already group-
+  // filtered by session.groupId), so pass the full roster — no separate player-tag filtering.
+  const filteredPlayers = players;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -436,24 +435,6 @@ function PlayerPicker({ label, player, active, onPress }: {
   );
 }
 
-function GroupChip({ label, color, selected, onPress }: {
-  label: string; color: string; selected: boolean; onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.scopeChip,
-        selected && { backgroundColor: color, borderColor: color },
-        pressed && { opacity: 0.7 },
-      ]}
-    >
-      <View style={[styles.scopeChipDot, { backgroundColor: selected ? '#fff' : color }]} />
-      <AppText size="sm" weight="semibold" color={selected ? '#fff' : Colors.textPrimary}>{label}</AppText>
-    </Pressable>
-  );
-}
-
 function SectionLabel({ children }: { children: string }) {
   return (
     <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>
@@ -477,18 +458,6 @@ const styles = StyleSheet.create({
   sectionLabel: { letterSpacing: 0.8, marginTop: Spacing.md, marginBottom: Spacing.sm, marginLeft: Spacing.xs },
 
   scopeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: 2, paddingVertical: Spacing.sm },
-  scopeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radius.full,
-    paddingVertical: 6,
-    paddingHorizontal: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    minHeight: 32,
-  },
-  scopeChipDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
 
   lbRow: {
     flexDirection: 'row',

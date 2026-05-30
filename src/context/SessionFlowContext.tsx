@@ -3,6 +3,8 @@ import { SecretHitlerRole, SecretHitlerTeam, RookRound } from '../types';
 
 interface SessionFlowState {
   gameId: string | null;
+  /** Optional group this game-night belongs to (Family/Friends). null = untagged. */
+  groupId: string | null;
   playerIds: string[];
   /** scores[playerId][fieldName] = value */
   scores: Record<string, Record<string, number>>;
@@ -27,6 +29,7 @@ interface SessionFlowState {
 
 interface SessionFlowContextValue extends SessionFlowState {
   setGameId: (id: string) => void;
+  setGroupId: (id: string | null) => void;
   setPlayerIds: (ids: string[]) => void;
   setFieldScore: (playerId: string, field: string, value: number) => void;
   setSelectedWinner: (playerId: string | null) => void;
@@ -49,6 +52,7 @@ interface SessionFlowContextValue extends SessionFlowState {
 
 const INITIAL: SessionFlowState = {
   gameId: null,
+  groupId: null,
   playerIds: [],
   scores: {},
   selectedWinner: null,
@@ -71,6 +75,10 @@ export function SessionFlowProvider({ children }: { children: React.ReactNode })
 
   const setGameId = useCallback((id: string) => {
     setState(s => ({ ...s, gameId: id }));
+  }, []);
+
+  const setGroupId = useCallback((id: string | null) => {
+    setState(s => ({ ...s, groupId: id }));
   }, []);
 
   const setPlayerIds = useCallback((ids: string[]) => {
@@ -161,6 +169,7 @@ export function SessionFlowProvider({ children }: { children: React.ReactNode })
     <SessionFlowContext.Provider value={{
       ...state,
       setGameId,
+      setGroupId,
       setPlayerIds,
       setFieldScore,
       setSelectedWinner,
