@@ -1,4 +1,4 @@
-import { ScoreType, Game } from '../types';
+import { ScoreType, Game, Session } from '../types';
 
 /** Default points per place if a placement game doesn't specify its own rubric. */
 export const DEFAULT_PLACEMENT_POINTS = [5, 3, 2, 1, 0];
@@ -52,7 +52,7 @@ export function calculateWinner(
   scoreType: ScoreType,
   manualWinner?: string | null,
 ): string {
-  if (scoreType === 'winner') {
+  if (scoreType === 'winner' || scoreType === 'secretHitler' || scoreType === 'rook') {
     return manualWinner ?? playerIds[0];
   }
 
@@ -72,3 +72,35 @@ export function calculateWinner(
 
   return totals[0].pid;
 }
+
+/**
+ * The set of players who should receive a "win" credit on the leaderboard for this session.
+ *
+ * - Secret Hitler: everyone whose role is on the winning team (Hitler counts as fascist).
+ * - Rook: every player on the winning team.
+ * - All other scoreTypes (incl. legacy SH sessions without roles): [session.winner].
+ *
+ * Falls back to [session.winner] whenever the team-game fields are missing, so legacy
+ * data from before this feature continues to work.
+ */
+export function getWinningPlayerIds(session: Session): string[] {
+  if (session.winningTeam && session.roles) {
+    const team = session.winningTeam;
+    const winners = session.players.filter(pid => {
+      const role = session.roles?.[pid];
+      if (!role) return false;
+      if (team === 'fascist') return role === 'fascist' || role === 'hitler';
+      return role === 'liberal';
+    });
+    return winners.length > 0 ? winners : [session.winner];
+  }
+
+  if (session.rookData) {
+    const team = session.rookData.winningTeam;
+    const winners = session.rookData.teams[team] ?? [];
+    return winners.length > 0 ? winners : [session.winner];
+  }
+
+  return session.winner ? [session.winner] : [];
+}
+

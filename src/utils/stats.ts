@@ -1,12 +1,15 @@
 import { Session, Player, Game, ScoreType } from '../types';
+import { getWinningPlayerIds } from './scoring';
 
 // ─── Basic counts ─────────────────────────────────────────────────────────────
 
-/** Total wins per playerId across all sessions */
+/** Total wins per playerId across all sessions. Team games credit every player on the winning team. */
 export function getWinCounts(sessions: Session[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const s of sessions) {
-    counts[s.winner] = (counts[s.winner] ?? 0) + 1;
+    for (const pid of getWinningPlayerIds(s)) {
+      counts[pid] = (counts[pid] ?? 0) + 1;
+    }
   }
   return counts;
 }
@@ -36,7 +39,7 @@ export function getGamePlayCounts(sessions: Session[]): Record<string, number> {
 export function getWinRate(sessions: Session[], playerId: string): number {
   const played = sessions.filter(s => s.players.includes(playerId)).length;
   if (played === 0) return 0;
-  const wins = sessions.filter(s => s.winner === playerId).length;
+  const wins = sessions.filter(s => getWinningPlayerIds(s).includes(playerId)).length;
   return wins / played;
 }
 
@@ -54,7 +57,7 @@ export function getStreaks(sessions: Session[], playerId: string): { current: nu
   let running = 0;
 
   for (const s of playerSessions) {
-    if (s.winner === playerId) {
+    if (getWinningPlayerIds(s).includes(playerId)) {
       running++;
       if (running > longest) longest = running;
     } else {
@@ -105,8 +108,8 @@ export function getHeadToHead(sessions: Session[], p1Id: string, p2Id: string): 
   const shared = sessions.filter(
     s => s.players.includes(p1Id) && s.players.includes(p2Id),
   );
-  const p1Wins = shared.filter(s => s.winner === p1Id).length;
-  const p2Wins = shared.filter(s => s.winner === p2Id).length;
+  const p1Wins = shared.filter(s => getWinningPlayerIds(s).includes(p1Id)).length;
+  const p2Wins = shared.filter(s => getWinningPlayerIds(s).includes(p2Id)).length;
   return { p1Wins, p2Wins, total: shared.length, sharedSessions: shared };
 }
 
@@ -184,13 +187,35 @@ export function getGameBestScore(
   return best;
 }
 
-/** Win count per player for a specific game */
+/** Win count per player for a specific game. Team games credit every winning-team member. */
 export function getGameWinsPerPlayer(sessions: Session[], gameId: string): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const s of sessions.filter(s => s.gameId === gameId)) {
-    counts[s.winner] = (counts[s.winner] ?? 0) + 1;
+    for (const pid of getWinningPlayerIds(s)) {
+      counts[pid] = (counts[pid] ?? 0) + 1;
+    }
   }
   return counts;
+}
+
+/** Total MVP awards per playerId (Secret Hitler / any future game that tags MVP). */
+export function getMvpCounts(sessions: Session[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const s of sessions) {
+    if (s.mvpPlayerId) counts[s.mvpPlayerId] = (counts[s.mvpPlayerId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** Team-win counts for Secret Hitler across the given sessions. */
+export function getSecretHitlerTeamWins(sessions: Session[]): { liberal: number; fascist: number } {
+  let liberal = 0;
+  let fascist = 0;
+  for (const s of sessions) {
+    if (s.winningTeam === 'liberal') liberal++;
+    else if (s.winningTeam === 'fascist') fascist++;
+  }
+  return { liberal, fascist };
 }
 
 // ─── Dashboard helpers ────────────────────────────────────────────────────────

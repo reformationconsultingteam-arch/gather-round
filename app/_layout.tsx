@@ -62,6 +62,7 @@ export default function RootLayout() {
             <Stack.Screen name="history" options={HEADER_OPTS} />
             <Stack.Screen name="player" options={HEADER_OPTS} />
             <Stack.Screen name="game" options={HEADER_OPTS} />
+            <Stack.Screen name="stats" options={HEADER_OPTS} />
             <Stack.Screen name="settings" options={HEADER_OPTS} />
             <Stack.Screen name="setup" />
           </Stack>

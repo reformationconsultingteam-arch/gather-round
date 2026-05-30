@@ -1,4 +1,4 @@
-export type ScoreType = 'highest' | 'lowest' | 'winner' | 'placement';
+export type ScoreType = 'highest' | 'lowest' | 'winner' | 'placement' | 'secretHitler' | 'rook';
 
 export interface Player {
   id: string;
@@ -31,11 +31,32 @@ export interface Game {
   custom: boolean;
 }
 
+export type SecretHitlerRole = 'liberal' | 'fascist' | 'hitler';
+export type SecretHitlerTeam = 'liberal' | 'fascist';
+
+export interface RookRound {
+  biddingTeam: 'A' | 'B';
+  bidWinnerPlayerId?: string;
+  bidAmount: number;
+  teamAPoints: number;
+  teamBPoints: number;
+}
+
+export interface RookData {
+  teams: { A: string[]; B: string[] };
+  teamNames?: { A: string; B: string };
+  targetScore: number;
+  rounds: RookRound[];
+  winningTeam: 'A' | 'B';
+}
+
 /**
  * scores shape:
  *   - highest/lowest games: { [playerId]: { [fieldName]: number } }
  *   - winner   games:       { [playerId]: {} }  (winner field identifies the winner)
  *   - placement games:      { [playerId]: { Place: number } }  (1-indexed finishing position)
+ *   - secretHitler games:   { [playerId]: {} }  (roles + winningTeam carry the result)
+ *   - rook games:           { [playerId]: {} }  (rookData carries the result)
  */
 export interface Session {
   id: string;
@@ -43,7 +64,19 @@ export interface Session {
   date: string; // ISO 8601
   players: string[]; // ordered player IDs
   scores: Record<string, Record<string, number>>;
-  winner: string; // playerId
+  winner: string; // playerId — kept populated even for team games for back-compat
   /** Snapshot of each player's name+color at session save time, so deleted players still display correctly */
   playerSnapshots: Record<string, { name: string; color: string }>;
+
+  /** Secret Hitler: role assignment per player */
+  roles?: Record<string, SecretHitlerRole>;
+  /** Secret Hitler: which team won the round */
+  winningTeam?: SecretHitlerTeam;
+  /** Optional MVP tag (any player) */
+  mvpPlayerId?: string;
+  /** Optional bonus-fascist tag (Secret Hitler) */
+  bonusFascistPlayerId?: string;
+
+  /** Rook: per-round ledger and team composition */
+  rookData?: RookData;
 }
