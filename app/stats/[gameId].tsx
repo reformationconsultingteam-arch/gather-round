@@ -12,12 +12,13 @@ import {
   getWinRate,
   getHeadToHead,
   getGameBestScore,
+  getGamePointsPerPlayer,
   getMvpCounts,
   getSecretHitlerTeamWins,
 } from '../../src/utils/stats';
 import { filterSessionsByGroup } from '../../src/utils/groups';
 import { formatScore } from '../../src/utils/scoring';
-import { Player, Session } from '../../src/types';
+import { Player, Session, Game } from '../../src/types';
 
 export default function PerGameStatsScreen() {
   const { gameId, groupId: groupIdParam } = useLocalSearchParams<{ gameId: string; groupId?: string }>();
@@ -93,7 +94,7 @@ export default function PerGameStatsScreen() {
         )}
 
         <SectionLabel>LEADERBOARD</SectionLabel>
-        <Leaderboard players={filteredPlayers} sessions={scopedSessions} />
+        <Leaderboard players={filteredPlayers} sessions={scopedSessions} game={isAll ? null : game} />
 
         {/* Game-specific extras */}
         {game && !isAll && (
@@ -117,22 +118,34 @@ export default function PerGameStatsScreen() {
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
-function Leaderboard({ players, sessions }: { players: Player[]; sessions: Session[] }) {
+function Leaderboard({ players, sessions, game }: { players: Player[]; sessions: Session[]; game?: Game | null }) {
   const router = useRouter();
+
+  // Points-based single-game view headlines accumulated points; everything else (team/winner
+  // games, and the combined "All games" view) ranks by wins.
+  const isPointsGame =
+    !!game && (game.scoreType === 'highest' || game.scoreType === 'lowest' || game.scoreType === 'placement');
+  const lowerIsBetter = game?.scoreType === 'lowest';
 
   const ranked = useMemo(() => {
     const winCounts = getWinCounts(sessions);
     const sessionsPerPlayer = getSessionsPerPlayer(sessions);
+    const points = isPointsGame && game ? getGamePointsPerPlayer(sessions, game) : {};
     return [...players]
       .map(p => ({
         player: p,
         wins: winCounts[p.id] ?? 0,
         played: sessionsPerPlayer[p.id] ?? 0,
         rate: getWinRate(sessions, p.id),
+        points: points[p.id] ?? 0,
       }))
       .filter(e => e.played > 0)
-      .sort((a, b) => b.wins - a.wins || b.rate - a.rate);
-  }, [players, sessions]);
+      .sort((a, b) =>
+        isPointsGame
+          ? (lowerIsBetter ? a.points - b.points : b.points - a.points) || b.wins - a.wins
+          : b.wins - a.wins || b.rate - a.rate,
+      );
+  }, [players, sessions, game, isPointsGame, lowerIsBetter]);
 
   if (ranked.length === 0) {
     return (
@@ -145,7 +158,14 @@ function Leaderboard({ players, sessions }: { players: Player[]; sessions: Sessi
   return (
     <View style={{ marginBottom: Spacing.lg }}>
       {ranked.map((entry, index) => {
-        const isLeader = index === 0 && entry.wins > 0;
+        const isLeader = index === 0;
+        const headline = isPointsGame ? formatScore(entry.points) : String(entry.wins);
+        const subline = isPointsGame
+          ? `${entry.wins} win${entry.wins !== 1 ? 's' : ''}`
+          : `${Math.round(entry.rate * 100)}%`;
+        const headlineColor = isPointsGame
+          ? entry.player.color
+          : entry.wins > 0 ? entry.player.color : Colors.textMuted;
         return (
           <Pressable
             key={entry.player.id}
@@ -167,10 +187,10 @@ function Leaderboard({ players, sessions }: { players: Player[]; sessions: Sessi
               </AppText>
             </View>
             <View style={styles.lbStats}>
-              <AppText size="lg" weight="heavy" color={entry.wins > 0 ? entry.player.color : Colors.textMuted}>
-                {entry.wins}
+              <AppText size="lg" weight="heavy" color={headlineColor}>
+                {headline}
               </AppText>
-              <AppText size="xs" color={Colors.textSecondary}>{Math.round(entry.rate * 100)}%</AppText>
+              <AppText size="xs" color={Colors.textSecondary}>{subline}</AppText>
             </View>
             <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} style={{ marginLeft: Spacing.xs }} />
           </Pressable>

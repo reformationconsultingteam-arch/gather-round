@@ -45,10 +45,24 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 
-function mergeMissingPresets(games: Game[]): Game[] {
-  const ids = new Set(games.map(g => g.id));
-  const missing = PRESET_GAMES.filter(p => !ids.has(p.id));
-  return missing.length > 0 ? [...games, ...missing] : games;
+// Bring stored games in line with the latest preset definitions. Every non-custom game is
+// overwritten with its canonical PRESET_GAMES entry (so changes like Secret Hitler's scoreType
+// reach existing installs), missing presets are appended, and custom games are left untouched.
+function reconcilePresets(games: Game[]): Game[] {
+  const presetById = new Map(PRESET_GAMES.map(p => [p.id, p]));
+  const seen = new Set<string>();
+  const reconciled = games.map(g => {
+    const preset = presetById.get(g.id);
+    if (preset && !g.custom) {
+      seen.add(g.id);
+      return { ...preset };
+    }
+    return g;
+  });
+  for (const p of PRESET_GAMES) {
+    if (!seen.has(p.id) && !games.some(g => g.id === p.id)) reconciled.push({ ...p });
+  }
+  return reconciled;
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -84,7 +98,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const pullFromRemote = useCallback(async (): Promise<boolean> => {
     const remote = await syncRefresh();
     if (!remote) return false;
-    const mergedGames = mergeMissingPresets(remote.games);
+    const mergedGames = reconcilePresets(remote.games);
     hydratingRef.current = true;
     setPlayers(remote.players);
     setGames(mergedGames);
@@ -97,8 +111,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       saveGroups(remote.groups),
     ]);
     setTimeout(() => { hydratingRef.current = false; }, 0);
-    // If we added missing presets locally, push them up so remote stays in sync
-    if (mergedGames.length !== remote.games.length) {
+    // If reconciling presets changed anything (added games or updated definitions), push back up
+    if (JSON.stringify(mergedGames) !== JSON.stringify(remote.games)) {
       schedulePush({
         players: remote.players,
         games: mergedGames,
@@ -121,17 +135,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (cancelled) return;
 
-      // Preset migration: ensure any new preset games added in later releases
-      // are seeded into existing installs (without wiping custom games).
+      // Preset reconciliation: seed presets on first install, and on every load bring stored
+      // preset games in line with the latest definitions (e.g. Secret Hitler's updated scoreType)
+      // without wiping custom games.
       let resolvedGames = storedGames;
-      const storedIds = new Set(storedGames.map(g => g.id));
-      const missingPresets = PRESET_GAMES.filter(p => !storedIds.has(p.id));
       if (storedGames.length === 0) {
         resolvedGames = PRESET_GAMES;
         await saveGames(PRESET_GAMES);
-      } else if (missingPresets.length > 0) {
-        resolvedGames = [...storedGames, ...missingPresets];
-        await saveGames(resolvedGames);
+      } else {
+        resolvedGames = reconcilePresets(storedGames);
+        if (JSON.stringify(resolvedGames) !== JSON.stringify(storedGames)) {
+          await saveGames(resolvedGames);
+        }
       }
 
       hydratingRef.current = true;

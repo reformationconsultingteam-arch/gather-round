@@ -6,7 +6,10 @@ module.exports = {
   swDest: 'dist/sw.js',
   cleanupOutdatedCaches: true,
   clientsClaim: true,
-  skipWaiting: true,
+  // Wait instead of activating mid-session, so the app can prompt the user to reload into the
+  // new version. With skipWaiting:false, generateSW emits a SKIP_WAITING message listener that
+  // the page posts to (via UpdateBanner) to activate the waiting worker on demand.
+  skipWaiting: false,
   maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
   navigateFallback: 'index.html',
   navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],

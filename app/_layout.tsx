@@ -4,6 +4,7 @@ import { Stack, useSegments, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { DataProvider } from '../src/context/DataContext';
 import { SyncProvider, useSync } from '../src/context/SyncContext';
+import { UpdateBanner } from '../src/components';
 import { Colors } from '../src/constants/theme';
 
 const HEADER_OPTS = {
@@ -40,6 +41,7 @@ export default function RootLayout() {
     <SyncProvider>
       <DataProvider>
         <StatusBar style="light" />
+        <UpdateBanner />
         <ConnectionGate>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
