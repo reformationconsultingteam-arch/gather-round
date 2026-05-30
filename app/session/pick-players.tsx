@@ -1,19 +1,26 @@
-import React, { useState } from 'react';
-import { View, FlatList, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, FlatList, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
 import { useSessionFlow } from '../../src/context/SessionFlowContext';
-import { AppText, Avatar, PrimaryButton, GhostButton } from '../../src/components';
+import { AppText, Avatar, PrimaryButton } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Player } from '../../src/types';
 
 export default function PickPlayersScreen() {
-  const { players } = useData();
-  const { setPlayerIds } = useSessionFlow();
+  const { players, games } = useData();
+  const flow = useSessionFlow();
   const router = useRouter();
 
+  const game = useMemo(() => games.find(g => g.id === flow.gameId), [games, flow.gameId]);
+  const isRook = game?.scoreType === 'rook';
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [phase, setPhase] = useState<'pick' | 'teams'>('pick');
+  // Rook team assignment: playerId → 'A' | 'B' | undefined
+  const [teamMap, setTeamMap] = useState<Record<string, 'A' | 'B'>>({});
+  const [targetStr, setTargetStr] = useState('500');
 
   function toggle(id: string) {
     setSelected(prev => {
@@ -23,15 +30,121 @@ export default function PickPlayersScreen() {
     });
   }
 
+  function cycleTeam(id: string) {
+    setTeamMap(prev => {
+      const cur = prev[id];
+      const next = { ...prev };
+      if (!cur) next[id] = 'A';
+      else if (cur === 'A') next[id] = 'B';
+      else delete next[id];
+      return next;
+    });
+  }
+
   function handleNext() {
     if (selected.size < 2) return;
-    setPlayerIds([...selected]);
+    if (isRook) {
+      // Seed an even-ish default split for convenience: alternate A/B
+      const seeded: Record<string, 'A' | 'B'> = {};
+      [...selected].forEach((id, i) => { seeded[id] = i % 2 === 0 ? 'A' : 'B'; });
+      setTeamMap(seeded);
+      setPhase('teams');
+      return;
+    }
+    flow.setPlayerIds([...selected]);
+    router.push('/session/enter-scores');
+  }
+
+  function handleStartRook() {
+    const selectedIds = [...selected];
+    const teamA = selectedIds.filter(id => teamMap[id] === 'A');
+    const teamB = selectedIds.filter(id => teamMap[id] === 'B');
+    const target = parseInt(targetStr, 10);
+    if (teamA.length === 0 || teamB.length === 0 || !Number.isFinite(target) || target <= 0) return;
+    flow.setPlayerIds(selectedIds);
+    flow.setRookTeams(teamA, teamB);
+    flow.setRookTargetScore(target);
     router.push('/session/enter-scores');
   }
 
   const canProceed = selected.size >= 2;
   const needsMorePlayers = players.length < 2;
 
+  // ── Rook team-assignment phase ──────────────────────────────────────────────
+  if (phase === 'teams') {
+    const selectedIds = [...selected];
+    const teamA = selectedIds.filter(id => teamMap[id] === 'A');
+    const teamB = selectedIds.filter(id => teamMap[id] === 'B');
+    const unassigned = selectedIds.filter(id => !teamMap[id]);
+    const target = parseInt(targetStr, 10);
+    const targetOk = Number.isFinite(target) && target > 0;
+    const canStart = teamA.length > 0 && teamB.length > 0 && unassigned.length === 0 && targetOk;
+    const nameById = Object.fromEntries(players.map(p => [p.id, p]));
+
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+          <AppText size="sm" color={Colors.textSecondary} style={styles.hint}>
+            Tap each player to cycle: Team A → Team B → Unassigned
+          </AppText>
+
+          {selectedIds.map(id => {
+            const p = nameById[id];
+            if (!p) return null;
+            const team = teamMap[id];
+            const color = team === 'A' ? '#3B82F6' : team === 'B' ? '#EF4444' : Colors.surfaceAlt;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => cycleTeam(id)}
+                style={({ pressed }) => [
+                  rookSetupStyles.row,
+                  team && { borderColor: color, backgroundColor: color + '14' },
+                  pressed && { opacity: 0.75 },
+                ]}
+              >
+                <Avatar name={p.name} color={p.color} size="md" />
+                <AppText size="lg" weight="semibold" style={{ flex: 1, marginLeft: Spacing.md }}>
+                  {p.name}
+                </AppText>
+                <View style={[rookSetupStyles.teamBadge, { backgroundColor: team ? color : Colors.surfaceAlt }]}>
+                  <AppText size="sm" weight="bold" color={team ? '#fff' : Colors.textMuted}>
+                    {team ? `Team ${team}` : 'Tap'}
+                  </AppText>
+                </View>
+              </Pressable>
+            );
+          })}
+
+          <View style={rookSetupStyles.targetRow}>
+            <AppText size="md" weight="semibold" style={{ flex: 1 }}>Target score</AppText>
+            <TextInput
+              style={rookSetupStyles.targetInput}
+              value={targetStr}
+              onChangeText={setTargetStr}
+              keyboardType="number-pad"
+              placeholder="500"
+              placeholderTextColor={Colors.textMuted}
+              selectTextOnFocus
+            />
+          </View>
+
+          <AppText size="sm" color={Colors.textMuted} align="center" style={{ marginTop: Spacing.md }}>
+            Team A: {teamA.length}  ·  Team B: {teamB.length}
+            {unassigned.length > 0 && `  ·  ${unassigned.length} unassigned`}
+          </AppText>
+        </ScrollView>
+        <View style={styles.footer}>
+          <Pressable onPress={() => setPhase('pick')} style={{ paddingVertical: Spacing.sm }}>
+            <AppText size="sm" color={Colors.textSecondary} align="center">← Back to player select</AppText>
+          </Pressable>
+          <PrimaryButton label="Start Rook →" onPress={handleStartRook} disabled={!canStart} />
+        </View>
+      </View>
+    );
+  }
+
+  // ── Standard player selection ───────────────────────────────────────────────
   return (
     <View style={styles.container}>
       {players.length === 0 ? (
@@ -46,7 +159,7 @@ export default function PickPlayersScreen() {
           ListHeaderComponent={
             <View>
               <AppText size="sm" color={Colors.textSecondary} style={styles.hint}>
-                Select at least 2 players
+                {isRook ? 'Select players (you\'ll split them into teams next)' : 'Select at least 2 players'}
               </AppText>
               {needsMorePlayers && (
                 <AppText size="sm" color={Colors.warning} style={styles.hint}>
@@ -83,7 +196,7 @@ export default function PickPlayersScreen() {
           </AppText>
         )}
         <PrimaryButton
-          label="Next →"
+          label={isRook ? 'Form teams →' : 'Next →'}
           onPress={handleNext}
           disabled={!canProceed}
         />
@@ -206,5 +319,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.xl,
+  },
+});
+
+const rookSetupStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    minHeight: 64,
+  },
+  teamBadge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    minWidth: 86,
+    alignItems: 'center',
+  },
+  targetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  targetInput: {
+    width: 100,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    color: Colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'right',
   },
 });

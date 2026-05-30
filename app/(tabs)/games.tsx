@@ -14,17 +14,21 @@ import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Game, ScoreType } from '../../src/types';
 
 const SCORE_TYPE_LABEL: Record<ScoreType, string> = {
-  highest:   'Highest wins',
-  lowest:    'Lowest wins',
-  winner:    'Pick winner',
-  placement: 'Placement',
+  highest:      'Highest wins',
+  lowest:       'Lowest wins',
+  winner:       'Pick winner',
+  placement:    'Placement',
+  secretHitler: 'Teams + roles',
+  rook:         'Teams + rounds',
 };
 
 const SCORE_TYPE_COLOR: Record<ScoreType, string> = {
-  highest:   '#6BCB77',
-  lowest:    '#FF922B',
-  winner:    '#4D96FF',
-  placement: '#C56BFF',
+  highest:      '#6BCB77',
+  lowest:       '#FF922B',
+  winner:       '#4D96FF',
+  placement:    '#C56BFF',
+  secretHitler: '#EF4444',
+  rook:         '#13A4B4',
 };
 
 function ScoreBadge({ type }: { type: ScoreType }) {

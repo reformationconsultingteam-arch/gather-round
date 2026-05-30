@@ -28,7 +28,13 @@ export default function SessionDetailScreen() {
     );
   }
 
-  const isPointsGame = game.scoreType !== 'winner';
+  const isSecretHitler = game.scoreType === 'secretHitler' && !!session.roles && !!session.winningTeam;
+  const isRook = game.scoreType === 'rook' && !!session.rookData;
+  const isTeamGame = isSecretHitler || isRook;
+  // Points scorecard applies only to highest/lowest/placement. winner + team games (incl. legacy
+  // team-game sessions saved before roles existed) just list players under the winner callout.
+  const isPointsGame =
+    game.scoreType === 'highest' || game.scoreType === 'lowest' || game.scoreType === 'placement';
   const isPlacementGame = game.scoreType === 'placement';
   const winner = resolvePlayer(session, session.winner, players);
 
@@ -63,8 +69,16 @@ export default function SessionDetailScreen() {
           </AppText>
         </View>
 
-        {/* Winner callout */}
-        {winner && (
+        {/* Team-game callout (Secret Hitler / Rook) */}
+        {isSecretHitler && (
+          <SecretHitlerDetail session={session} players={players} />
+        )}
+        {isRook && (
+          <RookDetail session={session} players={players} />
+        )}
+
+        {/* Winner callout — single-winner games only */}
+        {!isTeamGame && winner && (
           <Card style={[styles.winnerCard, { borderColor: winner.color + '66' }]} padding={Spacing.md}>
             <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.winnerLabel}>
               WINNER
@@ -79,12 +93,14 @@ export default function SessionDetailScreen() {
           </Card>
         )}
 
-        {/* Scorecard */}
-        <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>
-          {isPointsGame ? 'SCORECARD' : 'PLAYERS'}
-        </AppText>
+        {/* Scorecard — skipped for team games (handled above) */}
+        {!isTeamGame && (
+          <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>
+            {isPointsGame ? 'SCORECARD' : 'PLAYERS'}
+          </AppText>
+        )}
 
-        {sortedPlayers.map(pid => {
+        {!isTeamGame && sortedPlayers.map(pid => {
           const p = resolvePlayer(session, pid, players);
           if (!p) return null;
           const isWinner = pid === session.winner;
@@ -210,3 +226,143 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
 });
+
+// ─── Secret Hitler detail ─────────────────────────────────────────────────────
+
+const ROLE_COLORS = { liberal: '#3B82F6', fascist: '#EF4444', hitler: '#111827' } as const;
+const ROLE_LABELS = { liberal: 'Liberal', fascist: 'Fascist', hitler: 'Hitler' } as const;
+
+function SecretHitlerDetail({ session, players }: { session: any; players: any[] }) {
+  const team = session.winningTeam as 'liberal' | 'fascist';
+  const teamColor = team === 'fascist' ? ROLE_COLORS.fascist : ROLE_COLORS.liberal;
+  const winningRoles = team === 'fascist' ? ['fascist', 'hitler'] : ['liberal'];
+
+  return (
+    <View style={{ marginBottom: Spacing.lg }}>
+      <Card style={[styles.winnerCard, { borderColor: teamColor + '66' }]} padding={Spacing.md}>
+        <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.winnerLabel}>
+          WINNER
+        </AppText>
+        <AppText size="xl" weight="heavy" color={teamColor}>
+          {team === 'fascist' ? 'Fascists' : 'Liberals'} won
+        </AppText>
+      </Card>
+
+      <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>ROLES</AppText>
+      {session.players.map((pid: string) => {
+        const p = resolvePlayer(session, pid, players);
+        if (!p) return null;
+        const role = session.roles?.[pid] as 'liberal' | 'fascist' | 'hitler' | undefined;
+        const isWinningSide = !!role && winningRoles.includes(role);
+        const isMvp = session.mvpPlayerId === pid;
+        const isBonus = session.bonusFascistPlayerId === pid;
+        return (
+          <Card
+            key={pid}
+            style={[styles.playerCard, isWinningSide && { borderColor: p.color + '66' }]}
+            padding={0}
+          >
+            <View style={[styles.playerHeader, isWinningSide && { backgroundColor: p.color + '12' }]}>
+              <Avatar name={p.name} color={p.color} size="sm" />
+              <AppText size="md" weight={isWinningSide ? 'bold' : 'regular'} style={{ flex: 1, marginLeft: Spacing.sm }}>
+                {p.name}
+              </AppText>
+              {isMvp && (
+                <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: '#FFD93D', backgroundColor: '#FFD93D22', marginRight: 6 }}>
+                  <AppText size="xs" weight="bold" color="#92710A">MVP</AppText>
+                </View>
+              )}
+              {isBonus && (
+                <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: '#EF4444', backgroundColor: '#EF444422', marginRight: 6 }}>
+                  <AppText size="xs" weight="bold" color="#DC2626">Bonus F</AppText>
+                </View>
+              )}
+              {role && (
+                <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: ROLE_COLORS[role] }}>
+                  <AppText size="xs" weight="bold" color="#fff">{ROLE_LABELS[role]}</AppText>
+                </View>
+              )}
+            </View>
+          </Card>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Rook detail ──────────────────────────────────────────────────────────────
+
+function RookDetail({ session, players }: { session: any; players: any[] }) {
+  const data = session.rookData;
+  if (!data) return null;
+  const teamATotal = data.rounds.reduce((s: number, r: any) => s + r.teamAPoints, 0);
+  const teamBTotal = data.rounds.reduce((s: number, r: any) => s + r.teamBPoints, 0);
+  const winnerTeam = data.winningTeam as 'A' | 'B';
+
+  return (
+    <View style={{ marginBottom: Spacing.lg }}>
+      <Card style={[styles.winnerCard, { borderColor: Colors.accent + '66' }]} padding={Spacing.md}>
+        <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.winnerLabel}>
+          WINNER
+        </AppText>
+        <AppText size="xl" weight="heavy" color={Colors.accent}>
+          Team {winnerTeam} won  ({teamATotal} – {teamBTotal})
+        </AppText>
+        <AppText size="sm" color={Colors.textSecondary} style={{ marginTop: 4 }}>
+          Target: {data.targetScore} · {data.rounds.length} round{data.rounds.length === 1 ? '' : 's'}
+        </AppText>
+      </Card>
+
+      <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+        {(['A', 'B'] as const).map(letter => (
+          <Card key={letter} style={[
+            { flex: 1, borderWidth: 2, borderColor: Colors.border, borderRadius: Radius.lg },
+            winnerTeam === letter && { borderColor: Colors.accent, backgroundColor: Colors.accent + '14' },
+          ]} padding={Spacing.md}>
+            <AppText size="xs" color={Colors.textSecondary}>Team {letter}</AppText>
+            <AppText size="xl" weight="heavy">{letter === 'A' ? teamATotal : teamBTotal}</AppText>
+            {data.teams[letter].map((pid: string) => {
+              const p = resolvePlayer(session, pid, players);
+              if (!p) return null;
+              return (
+                <View key={pid} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                  <Avatar name={p.name} color={p.color} size="sm" />
+                  <AppText size="sm" weight="semibold" style={{ marginLeft: 6 }}>{p.name}</AppText>
+                </View>
+              );
+            })}
+          </Card>
+        ))}
+      </View>
+
+      <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.sectionLabel}>ROUNDS</AppText>
+      {data.rounds.map((r: any, i: number) => {
+        const bidderPts = r.biddingTeam === 'A' ? r.teamAPoints : r.teamBPoints;
+        const madeBid = bidderPts >= r.bidAmount;
+        return (
+          <Card key={i} style={{ marginBottom: 6, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md }} padding={Spacing.sm}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <AppText size="sm" weight="semibold">
+                  R{i + 1} · Team {r.biddingTeam} bid {r.bidAmount}
+                </AppText>
+                <AppText size="xs" color={Colors.textSecondary}>
+                  A: {r.teamAPoints}  ·  B: {r.teamBPoints}
+                </AppText>
+              </View>
+              <View style={{
+                paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1,
+                borderColor: madeBid ? '#10B981' : '#EF4444',
+                backgroundColor: (madeBid ? '#10B981' : '#EF4444') + '22',
+              }}>
+                <AppText size="xs" weight="bold" color={madeBid ? '#059669' : '#DC2626'}>
+                  {madeBid ? 'Made' : 'Set'}
+                </AppText>
+              </View>
+            </View>
+          </Card>
+        );
+      })}
+    </View>
+  );
+}
