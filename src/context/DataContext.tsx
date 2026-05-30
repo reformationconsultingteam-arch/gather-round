@@ -38,6 +38,7 @@ interface DataContextValue {
   // Session actions
   addSession: (session: Omit<Session, 'id' | 'playerSnapshots'>) => Session;
   deleteSession: (id: string) => void;
+  setSessionGroup: (id: string, groupId: string | null) => void;
 
   // Sync actions
   pullFromRemote: () => Promise<boolean>;
@@ -317,13 +318,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     pushAll({ players, games, sessions: next, groups });
   }, [players, games, sessions, groups, pushAll]);
 
+  const setSessionGroup = useCallback((id: string, groupId: string | null) => {
+    const next = sessions.map(s => {
+      if (s.id !== id) return s;
+      if (groupId) return { ...s, groupId };
+      const { groupId: _removed, ...rest } = s;
+      return rest;
+    });
+    setSessions(next);
+    saveSessions(next);
+    pushAll({ players, games, sessions: next, groups });
+  }, [players, games, sessions, groups, pushAll]);
+
   return (
     <DataContext.Provider value={{
       players, games, sessions, groups, loading,
       addPlayer, renamePlayer, deletePlayer, setPlayerGroups,
       addGroup, renameGroup, recolorGroup, deleteGroup,
       addCustomGame, deleteCustomGame,
-      addSession, deleteSession,
+      addSession, deleteSession, setSessionGroup,
       pullFromRemote,
     }}>
       {children}

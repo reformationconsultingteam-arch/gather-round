@@ -22,8 +22,8 @@ export default function GameStatsScreen() {
 
   // Apply group filter before computing per-game derivatives.
   const scopedSessions = useMemo(
-    () => filterSessionsByGroup(sessions, groupId, players),
-    [sessions, groupId, players],
+    () => filterSessionsByGroup(sessions, groupId),
+    [sessions, groupId],
   );
 
   const gameSessions = useMemo(

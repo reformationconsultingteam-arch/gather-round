@@ -1,19 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { useData } from '../../src/context/DataContext';
-import { AppText, Avatar, Card } from '../../src/components';
+import { AppText, Avatar, Card, ActionSheet } from '../../src/components';
+import type { ActionSheetAction } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { formatScore, getPlayerTotal, getPlacementPoints, formatPlace } from '../../src/utils/scoring';
 import { resolvePlayer } from '../../src/utils/players';
 
 export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { sessions, games, players } = useData();
+  const { sessions, games, players, groups, setSessionGroup } = useData();
   const router = useRouter();
+  const [groupSheet, setGroupSheet] = useState(false);
 
   const session = sessions.find(s => s.id === id);
   const game = session ? games.find(g => g.id === session.gameId) : null;
@@ -37,6 +39,12 @@ export default function SessionDetailScreen() {
     game.scoreType === 'highest' || game.scoreType === 'lowest' || game.scoreType === 'placement';
   const isPlacementGame = game.scoreType === 'placement';
   const winner = resolvePlayer(session, session.winner, players);
+  const currentGroup = session.groupId ? groups.find(g => g.id === session.groupId) ?? null : null;
+
+  const groupActions: ActionSheetAction[] = [
+    ...groups.map(g => ({ label: g.name, onPress: () => setSessionGroup(session.id, g.id) })),
+    ...(session.groupId ? [{ label: 'No group', onPress: () => setSessionGroup(session.id, null) }] : []),
+  ];
 
   // Sort players: winner first; then by Place ascending for placement, or by total desc for other points games
   const sortedPlayers = [...session.players].sort((a, b) => {
@@ -67,6 +75,25 @@ export default function SessionDetailScreen() {
           <AppText size="sm" color={Colors.textSecondary} align="center" style={{ marginTop: Spacing.xs }}>
             {format(parseISO(session.date), 'EEEE, MMMM d, yyyy')}
           </AppText>
+          {groups.length > 0 && (
+            <Pressable
+              onPress={() => setGroupSheet(true)}
+              style={({ pressed }) => [
+                styles.groupChip,
+                currentGroup
+                  ? { borderColor: currentGroup.color, backgroundColor: currentGroup.color + '1A' }
+                  : { borderColor: Colors.border },
+                pressed && { opacity: 0.7 },
+              ]}
+              hitSlop={8}
+            >
+              {currentGroup && <View style={[styles.groupDot, { backgroundColor: currentGroup.color }]} />}
+              <AppText size="sm" weight="semibold" color={currentGroup ? currentGroup.color : Colors.textSecondary}>
+                {currentGroup ? currentGroup.name : 'Add to a group'}
+              </AppText>
+              <Ionicons name="chevron-down" size={14} color={currentGroup ? currentGroup.color : Colors.textMuted} style={{ marginLeft: 4 }} />
+            </Pressable>
+          )}
         </View>
 
         {/* Team-game callout (Secret Hitler / Rook) */}
@@ -169,12 +196,31 @@ export default function SessionDetailScreen() {
           );
         })}
       </ScrollView>
+
+      <ActionSheet
+        visible={groupSheet}
+        onClose={() => setGroupSheet(false)}
+        title="Tag this game-night"
+        subtitle="Which group did this night belong to?"
+        actions={groupActions}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
+  groupChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: Spacing.sm,
+    paddingVertical: 5,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+  },
+  groupDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -145,6 +145,7 @@ export default function EnterScoresScreen() {
       players: flow.playerIds,
       scores: flow.scores,
       winner,
+      ...(flow.groupId ? { groupId: flow.groupId } : {}),
     });
 
     flow.setSavedSessionId(session.id);
@@ -173,6 +174,7 @@ export default function EnterScoresScreen() {
       winningTeam: flow.winningTeam,
       mvpPlayerId: flow.mvpPlayerId ?? undefined,
       bonusFascistPlayerId: flow.bonusFascistPlayerId ?? undefined,
+      ...(flow.groupId ? { groupId: flow.groupId } : {}),
     });
 
     flow.setSavedSessionId(session.id);
@@ -197,6 +199,7 @@ export default function EnterScoresScreen() {
         rounds: [...flow.rookRounds],
         winningTeam: flow.rookWinningTeam,
       },
+      ...(flow.groupId ? { groupId: flow.groupId } : {}),
     });
 
     flow.setSavedSessionId(session.id);

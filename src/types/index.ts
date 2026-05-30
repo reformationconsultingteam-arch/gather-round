@@ -68,6 +68,9 @@ export interface Session {
   /** Snapshot of each player's name+color at session save time, so deleted players still display correctly */
   playerSnapshots: Record<string, { name: string; color: string }>;
 
+  /** Optional group this game-night belongs to (Family/Friends). Drives group leaderboards. */
+  groupId?: string;
+
   /** Secret Hitler: role assignment per player */
   roles?: Record<string, SecretHitlerRole>;
   /** Secret Hitler: which team won the round */

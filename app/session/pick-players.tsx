@@ -4,12 +4,12 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../src/context/DataContext';
 import { useSessionFlow } from '../../src/context/SessionFlowContext';
-import { AppText, Avatar, PrimaryButton } from '../../src/components';
+import { AppText, Avatar, PrimaryButton, GroupChip } from '../../src/components';
 import { Colors, Spacing, Radius } from '../../src/constants/theme';
 import { Player } from '../../src/types';
 
 export default function PickPlayersScreen() {
-  const { players, games } = useData();
+  const { players, games, groups } = useData();
   const flow = useSessionFlow();
   const router = useRouter();
 
@@ -28,6 +28,15 @@ export default function PickPlayersScreen() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  // Tagging the night with a group also pre-selects that group's members as a shortcut
+  // (the user can still toggle individuals afterward). "No group" just clears the tag.
+  function pickGroup(groupId: string | null) {
+    flow.setGroupId(groupId);
+    if (groupId) {
+      setSelected(new Set(players.filter(p => p.groupIds?.includes(groupId)).map(p => p.id)));
+    }
   }
 
   function cycleTeam(id: string) {
@@ -158,6 +167,19 @@ export default function PickPlayersScreen() {
           columnWrapperStyle={styles.row}
           ListHeaderComponent={
             <View>
+              {groups.length > 0 && (
+                <View style={styles.groupSection}>
+                  <AppText size="xs" weight="bold" color={Colors.textMuted} style={styles.groupLabel}>
+                    GROUP (OPTIONAL)
+                  </AppText>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupRow}>
+                    <GroupChip label="No group" color={Colors.textMuted} selected={flow.groupId === null} onPress={() => pickGroup(null)} />
+                    {groups.map(g => (
+                      <GroupChip key={g.id} label={g.name} color={g.color} selected={flow.groupId === g.id} onPress={() => pickGroup(g.id)} />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <AppText size="sm" color={Colors.textSecondary} style={styles.hint}>
                 {isRook ? 'Select players (you\'ll split them into teams next)' : 'Select at least 2 players'}
               </AppText>
@@ -268,6 +290,20 @@ const styles = StyleSheet.create({
   hint: {
     marginBottom: Spacing.md,
     marginLeft: Spacing.xs,
+  },
+  groupSection: {
+    marginBottom: Spacing.md,
+  },
+  groupLabel: {
+    letterSpacing: 0.8,
+    marginLeft: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: 2,
   },
   addRow: {
     flexDirection: 'row',
